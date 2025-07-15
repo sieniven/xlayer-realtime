@@ -106,7 +106,7 @@ func AssertReceipt(t *testing.T, msg kafkaTypes.TransactionMessage, receipt *typ
 	assert.Equal(t, msg.Receipt.TransactionIndex, receipt.TransactionIndex)
 }
 
-func AssertInnerTxs(t *testing.T, msg kafkaTypes.TransactionMessage, innerTxs []*types.InnerTx) {
+func AssertInnerTxs(t *testing.T, msg kafkaTypes.TransactionMessage, innerTxs []*realtimeTypes.InnerTx) {
 	assert.Equal(t, len(msg.InnerTxs), len(innerTxs))
 	for i := range msg.InnerTxs {
 		assert.Equal(t, msg.InnerTxs[i].Dept.String(), innerTxs[i].Dept.String())

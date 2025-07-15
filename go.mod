@@ -7,7 +7,6 @@ require (
 	github.com/ethereum/go-ethereum v1.16.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/holiman/uint256 v1.3.2
-	github.com/ledgerwatch/erigon-lib v1.0.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/sync v0.14.0
 	gotest.tools v2.2.0+incompatible
@@ -72,6 +71,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/exp v0.0.0-20230711023510-fffb14384f22 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

@@ -41,10 +41,10 @@ var (
 		GasUsed:         2,
 	}
 
-	rightvrsTxInnerTxs = []*types.InnerTx{
+	rightvrsTxInnerTxs = []*realtimeTypes.InnerTx{
 		{
 			Name:     "innerTx1",
-			CallType: types.CALL_TYP,
+			CallType: realtimeTypes.CALL_TYP,
 		},
 	}
 

@@ -2,7 +2,7 @@ package cache
 
 import (
 	libcommon "github.com/ethereum/go-ethereum/common"
-	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 )
 
@@ -24,11 +24,11 @@ func (cache *StatelessCache) Clear() {
 }
 
 // -------------- Read operations --------------
-func (cache *StatelessCache) GetHeader(blockNum uint64) (*ethTypes.Header, int64, bool) {
+func (cache *StatelessCache) GetHeader(blockNum uint64) (*types.Header, int64, bool) {
 	return cache.blockInfoMap.Get(blockNum)
 }
 
-func (cache *StatelessCache) GetTxInfo(txHash libcommon.Hash) (ethTypes.Transaction, *ethTypes.Receipt, uint64, []*zktypes.InnerTx, bool) {
+func (cache *StatelessCache) GetTxInfo(txHash libcommon.Hash) (types.Transaction, *types.Receipt, uint64, []*realtimeTypes.InnerTx, bool) {
 	return cache.txInfoMap.GetTx(txHash)
 }
 
@@ -37,11 +37,11 @@ func (cache *StatelessCache) GetBlockTxs(blockNum uint64) ([]libcommon.Hash, boo
 }
 
 // -------------- Write operations --------------
-func (cache *StatelessCache) PutHeader(blockNum uint64, header *ethTypes.Header, prevTxCount int64) {
+func (cache *StatelessCache) PutHeader(blockNum uint64, header *types.Header, prevTxCount int64) {
 	cache.blockInfoMap.PutHeader(blockNum, header, prevTxCount)
 }
 
-func (cache *StatelessCache) PutTxInfo(blockNum uint64, txHash libcommon.Hash, tx ethTypes.Transaction, receipt *ethTypes.Receipt, innerTxs []*zktypes.InnerTx) {
+func (cache *StatelessCache) PutTxInfo(blockNum uint64, txHash libcommon.Hash, tx types.Transaction, receipt *types.Receipt, innerTxs []*realtimeTypes.InnerTx) {
 	cache.txInfoMap.Put(blockNum, txHash, tx, receipt, innerTxs)
 }
 
