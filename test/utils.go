@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/sieniven/xlayer-realtime/rtclient"
 	"github.com/stretchr/testify/require"
 )
@@ -54,6 +55,20 @@ func setupRealtimeTestEnvironment(t *testing.T, ctx context.Context, rtclient *r
 	}
 	require.Greater(t, blockNumber, uint64(0), "Realtime block number should be greater than 0")
 	return blockNumber
+}
+
+// GetAuth configures and returns an auth object.
+func GetAuth(privateKeyStr string, chainID uint64) (*bind.TransactOpts, error) {
+	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(privateKeyStr, "0x"))
+	if err != nil {
+		return nil, err
+	}
+
+	return bind.NewKeyedTransactorWithChainID(privateKey, big.NewInt(0).SetUint64(chainID))
+}
+
+func GetTestChainConfig(chainID uint64) *params.ChainConfig {
+	return params.TestChainConfig
 }
 
 func nativeTransferTx(t *testing.T, ctx context.Context, client *ethclient.Client, amount *big.Int, toAddress string) *types.Transaction {

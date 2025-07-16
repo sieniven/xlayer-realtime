@@ -90,7 +90,7 @@ func TestKafka(t *testing.T) {
 		case err := <-errorChan:
 			t.Fatalf("Received error from consumer: %v", err)
 		case txMsg := <-txMsgsChan:
-			AssertCommonTx(t, txMsg, accessListTx, uint64(i), types.AccessListTxType)
+			AssertCommonTx(t, txMsg, signedAccessListTx, uint64(i), types.AccessListTxType)
 			AssertAccessList(t, txMsg.AccessList)
 			AssertReceipt(t, txMsg, txReceipt)
 			AssertInnerTxs(t, txMsg, txInnerTxs)
