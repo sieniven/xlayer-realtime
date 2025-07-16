@@ -3,10 +3,11 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
 	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 )
 
@@ -18,77 +19,55 @@ type TransactionMessage struct {
 	// Common tx fields
 	Type    uint8              `json:"type"`
 	Hash    libcommon.Hash     `json:"hash"`
-	From    libcommon.Address  `json:"from"`
-	ChainID *uint256.Int       `json:"chainId"`
+	ChainID *big.Int           `json:"chainId"`
 	Nonce   uint64             `json:"nonce"`
 	Gas     uint64             `json:"gas"`
 	To      *libcommon.Address `json:"to"`
-	Value   *uint256.Int       `json:"value"`
+	Value   *big.Int           `json:"value"`
 	Data    []byte             `json:"data"`
-	V       uint256.Int        `json:"v"`
-	R       uint256.Int        `json:"r"`
-	S       uint256.Int        `json:"s"`
+	V       *big.Int           `json:"v"`
+	R       *big.Int           `json:"r"`
+	S       *big.Int           `json:"s"`
 
 	// For legacy txs
-	GasPrice string `json:"gasPrice"`
+	GasPrice *big.Int `json:"gasPrice"`
 	// For EIP-1559 and EIP-2930 txs
 	AccessList []AccessTupleMessage `json:"accessList"`
-	Tip        string               `json:"tip"`
-	FeeCap     string               `json:"feeCap"`
+	Tip        *big.Int             `json:"tip"`
+	FeeCap     *big.Int             `json:"feeCap"`
 	// For blob txs
-	MaxFeePerBlobGas    string   `json:"maxFeePerBlobGas"`
+	MaxFeePerBlobGas    *big.Int `json:"maxFeePerBlobGas"`
 	BlobVersionedHashes []string `json:"blobVersionedHashes"`
 
 	// Receipt data
 	Receipt *types.Receipt `json:"receipt"`
 
 	// Inner transactions
-	InnerTxs []*InnerTx `json:"innerTxs"`
+	InnerTxs []*types.InnerTx `json:"innerTxs"`
 
 	// Changeset
 	Changeset *realtimeTypes.Changeset `json:"changeset"`
 }
 
-func ToKafkaTransactionMessage(tx types.Transaction, receipt *types.Receipt, innerTxs []*InnerTx, changeset *realtimeTypes.Changeset, blockNumber uint64) (txMsg TransactionMessage, err error) {
+func ToKafkaTransactionMessage(tx *types.Transaction, receipt *types.Receipt, innerTxs []*types.InnerTx, changeset *realtimeTypes.Changeset, blockNumber uint64) (txMsg TransactionMessage, err error) {
 	// Parse tx
 	switch tx.Type() {
 	case types.LegacyTxType:
-		if _, ok := tx.(*types.LegacyTx); !ok {
-			return TransactionMessage{}, fmt.Errorf("incorrect type, failed to encode legacy tx")
-		}
-
 		txMsg, err = fromLegacyTxMessage(tx, blockNumber)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse legacy tx error: %w", err)
 		}
 	case types.AccessListTxType:
-		if _, ok := tx.(*types.AccessListTx); !ok {
-			return TransactionMessage{}, fmt.Errorf("incorrect type, failed to encode access list tx")
-		}
-
 		txMsg, err = fromAccessListTxMessage(tx, blockNumber)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse accesslist tx error: %w", err)
 		}
 	case types.DynamicFeeTxType:
-		if _, ok := tx.(*types.DynamicFeeTransaction); !ok {
-			return TransactionMessage{}, fmt.Errorf("incorrect type, failed to encode dynamic fee tx")
-		}
-
 		txMsg, err = fromDynamicFeeTxMessage(tx, blockNumber)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse dynamic fee tx error: %w", err)
 		}
 	case types.BlobTxType:
-		switch tx.(type) {
-		case *types.BlobTx:
-			// continue
-		case *types.BlobTxWrapper:
-			// continue
-		default:
-			return TransactionMessage{}, fmt.Errorf("incorrect type, failed to encode blob tx")
-		}
-
 		txMsg, err = fromBlobTxMessage(tx, blockNumber)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse blob tx error: %w", err)
@@ -105,39 +84,19 @@ func ToKafkaTransactionMessage(tx types.Transaction, receipt *types.Receipt, inn
 	return txMsg, nil
 }
 
-func (msg TransactionMessage) GetTransaction() (types.Transaction, uint64, error) {
+func (msg TransactionMessage) GetTransaction() (*types.Transaction, uint64, error) {
 	blockNumber := msg.BlockNumber
 
 	// Get tx
 	switch msg.Type {
 	case types.LegacyTxType:
-		tx, err := msg.toLegacyTx()
-		if err != nil {
-			return nil, blockNumber, err
-		}
-
-		return &tx, blockNumber, nil
+		return msg.toLegacyTx(), blockNumber, nil
 	case types.AccessListTxType:
-		tx, err := msg.toAccessListTx()
-		if err != nil {
-			return nil, blockNumber, err
-		}
-
-		return &tx, blockNumber, nil
+		return msg.toAccessListTx(), blockNumber, nil
 	case types.DynamicFeeTxType:
-		tx, err := msg.toDynamicFeeTx()
-		if err != nil {
-			return nil, blockNumber, err
-		}
-
-		return &tx, blockNumber, nil
+		return msg.toDynamicFeeTx(), blockNumber, nil
 	case types.BlobTxType:
-		tx, err := msg.toBlobTx()
-		if err != nil {
-			return nil, blockNumber, err
-		}
-
-		return &tx, blockNumber, nil
+		return msg.toBlobTx(), blockNumber, nil
 	default:
 		return nil, blockNumber, fmt.Errorf("unsupported transaction type: %d", msg.Type)
 	}
@@ -151,7 +110,7 @@ func (msg TransactionMessage) GetReceipt() (*types.Receipt, error) {
 	return msg.Receipt, nil
 }
 
-func (msg TransactionMessage) GetInnerTxs() ([]*InnerTx, error) {
+func (msg TransactionMessage) GetInnerTxs() ([]*types.InnerTx, error) {
 	if msg.InnerTxs == nil {
 		return nil, fmt.Errorf("innerTxs is nil")
 	}
@@ -159,7 +118,7 @@ func (msg TransactionMessage) GetInnerTxs() ([]*InnerTx, error) {
 	return msg.InnerTxs, nil
 }
 
-func (msg TransactionMessage) GetAllTxData() (uint64, types.Transaction, *types.Receipt, []*InnerTx, error) {
+func (msg TransactionMessage) GetAllTxData() (uint64, *types.Transaction, *types.Receipt, []*types.InnerTx, error) {
 	tx, blockNum, err := msg.GetTransaction()
 	if err != nil {
 		return 0, nil, nil, nil, err
@@ -184,6 +143,23 @@ func (msg TransactionMessage) GetChangeset() (*realtimeTypes.Changeset, error) {
 	return msg.Changeset, nil
 }
 
+func (msg TransactionMessage) getAccessList() types.AccessList {
+	accessList := make([]types.AccessTuple, 0, len(msg.AccessList))
+	for _, tuple := range msg.AccessList {
+		accessList = append(accessList, tuple.toAccessTuple())
+	}
+
+	return accessList
+}
+
+func (msg TransactionMessage) getBlobVersionedHashes() []common.Hash {
+	blobVersionedHashes := make([]common.Hash, 0, len(msg.BlobVersionedHashes))
+	for _, hash := range msg.BlobVersionedHashes {
+		blobVersionedHashes = append(blobVersionedHashes, common.HexToHash(hash))
+	}
+	return blobVersionedHashes
+}
+
 func (msg TransactionMessage) Validate() error {
 	if _, _, err := msg.GetTransaction(); err != nil {
 		return err
@@ -203,30 +179,33 @@ func (msg TransactionMessage) Validate() error {
 
 func (msg TransactionMessage) MarshalJSON() ([]byte, error) {
 	type TransactionMessage struct {
-		BlockNumber uint64                   `json:"blockNumber"`
-		Type        uint8                    `json:"type"`
-		Hash        libcommon.Hash           `json:"hash"`
-		From        libcommon.Address        `json:"from"`
-		ChainID     *uint256.Int             `json:"chainId"`
-		Nonce       uint64                   `json:"nonce"`
-		Gas         uint64                   `json:"gas"`
-		To          *libcommon.Address       `json:"to"`
-		Value       *uint256.Int             `json:"value"`
-		Data        []byte                   `json:"data"`
-		V           uint256.Int              `json:"v"`
-		R           uint256.Int              `json:"r"`
-		S           uint256.Int              `json:"s"`
-		GasPrice    string                   `json:"gasPrice"`
-		Receipt     *types.Receipt           `json:"receipt"`
-		InnerTxs    []*InnerTx               `json:"innerTxs"`
-		Changeset   *realtimeTypes.Changeset `json:"changeset"`
+		BlockNumber         uint64                   `json:"blockNumber"`
+		Type                uint8                    `json:"type"`
+		Hash                libcommon.Hash           `json:"hash"`
+		ChainID             *big.Int                 `json:"chainId"`
+		Nonce               uint64                   `json:"nonce"`
+		Gas                 uint64                   `json:"gas"`
+		To                  *libcommon.Address       `json:"to"`
+		Value               *big.Int                 `json:"value"`
+		Data                []byte                   `json:"data"`
+		V                   *big.Int                 `json:"v"`
+		R                   *big.Int                 `json:"r"`
+		S                   *big.Int                 `json:"s"`
+		GasPrice            *big.Int                 `json:"gasPrice"`
+		AccessList          []AccessTupleMessage     `json:"accessList"`
+		Tip                 *big.Int                 `json:"tip"`
+		FeeCap              *big.Int                 `json:"feeCap"`
+		MaxFeePerBlobGas    *big.Int                 `json:"maxFeePerBlobGas"`
+		BlobVersionedHashes []string                 `json:"blobVersionedHashes"`
+		Receipt             *types.Receipt           `json:"receipt"`
+		InnerTxs            []*types.InnerTx         `json:"innerTxs"`
+		Changeset           *realtimeTypes.Changeset `json:"changeset"`
 	}
 
 	var enc TransactionMessage
 	enc.BlockNumber = msg.BlockNumber
 	enc.Type = msg.Type
 	enc.Hash = msg.Hash
-	enc.From = msg.From
 	enc.ChainID = msg.ChainID
 	enc.Nonce = msg.Nonce
 	enc.Gas = msg.Gas
@@ -237,6 +216,11 @@ func (msg TransactionMessage) MarshalJSON() ([]byte, error) {
 	enc.S = msg.S
 	enc.V = msg.V
 	enc.GasPrice = msg.GasPrice
+	enc.AccessList = msg.AccessList
+	enc.Tip = msg.Tip
+	enc.FeeCap = msg.FeeCap
+	enc.MaxFeePerBlobGas = msg.MaxFeePerBlobGas
+	enc.BlobVersionedHashes = msg.BlobVersionedHashes
 	enc.InnerTxs = msg.InnerTxs
 	enc.Changeset = msg.Changeset
 

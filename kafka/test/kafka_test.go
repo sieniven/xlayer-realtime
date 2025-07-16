@@ -3,57 +3,17 @@ package test
 import (
 	"context"
 	"math/big"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/holiman/uint256"
 	"github.com/sieniven/xlayer-realtime/kafka"
 	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 	"gotest.tools/v3/assert"
 )
 
 var (
-	sigBytes = "98ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4a8887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a301"
-
-	rightvrsTx = types.NewTransaction(
-		3,
-		testToAddr,
-		big.NewInt(10),
-		2000,
-		big.NewInt(1),
-		libcommon.FromHex("5544"),
-	)
-
-	rightvrsTxReceipt = &types.Receipt{
-		PostState:         libcommon.Hash{2}.Bytes(),
-		CumulativeGasUsed: 3,
-		Logs: []*types.Log{
-			{Address: libcommon.BytesToAddress([]byte{0x22})},
-			{Address: libcommon.BytesToAddress([]byte{0x02, 0x22})},
-		},
-		TxHash:          rightvrsTx.Hash(),
-		ContractAddress: libcommon.BytesToAddress([]byte{0x02, 0x22, 0x22}),
-		GasUsed:         2,
-	}
-
-	rightvrsTxInnerTxs = []*realtimeTypes.InnerTx{
-		{
-			Name:     "innerTx1",
-			CallType: realtimeTypes.CALL_TYP,
-		},
-	}
-
-	rightvrsTxChangeset = &realtimeTypes.Changeset{
-		BalanceChanges: map[libcommon.Address]*uint256.Int{
-			testToAddr: uint256.NewInt(10),
-		},
-	}
-
 	difficulty, _ = new(big.Int).SetString("8398142613866510000000000000000000000000000000", 10)
 	blockHeader   = &types.Header{
 		ParentHash:  libcommon.HexToHash("0x8b00fcf1e541d371a3a1b79cc999a85cc3db5ee5637b5159646e1acd3613fd15"),
@@ -73,24 +33,19 @@ var (
 )
 
 func TestKafka(t *testing.T) {
-	signer := types.MakeSigner(GetTestChainConfig(DefaultL2ChainID), big.NewInt(1), 0)
-	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(DefaultL2AdminPrivateKey, "0x"))
-	assert.NilError(t, err)
-	signedTx, err := types.SignTx(rightvrsTx, signer, privateKey)
-	assert.NilError(t, err)
-
 	cfg := kafka.KafkaConfig{
 		BootstrapServers: []string{"0.0.0.0:9095"},
 		BlockTopic:       "xlayer-test-block",
 		TxTopic:          "xlayer-test-tx",
 		ErrorTopic:       "xlayer-test-error",
 		ClientID:         "xlayer-test-consumer",
+		GroupID:          "xlayer-test-consumer-1",
 	}
 	producer, err := kafka.NewKafkaProducer(cfg)
 	assert.NilError(t, err)
 
 	for i := 0; i < 10; i++ {
-		err = producer.SendKafkaTransaction(context.Background(), uint64(i), signedTx, rightvrsTxReceipt, rightvrsTxInnerTxs, rightvrsTxChangeset)
+		err = producer.SendKafkaTransaction(context.Background(), uint64(i), signedLegacyTx, txReceipt, txInnerTxs, txChangeset)
 		assert.NilError(t, err)
 
 		err = producer.SendKafkaBlockInfo(context.Background(), blockHeader, 10)
@@ -100,15 +55,20 @@ func TestKafka(t *testing.T) {
 		assert.NilError(t, err)
 	}
 
+	for i := 10; i < 20; i++ {
+		err = producer.SendKafkaTransaction(context.Background(), uint64(i), signedAccessListTx, txReceipt, txInnerTxs, txChangeset)
+		assert.NilError(t, err)
+	}
+
 	err = producer.Close()
 	assert.NilError(t, err)
 
-	consumer, err := kafka.NewKafkaConsumer(cfg)
+	consumer, err := kafka.NewKafkaConsumer(cfg, false)
 	assert.NilError(t, err)
 	ctx, ctxWithCancel := context.WithCancel(context.Background())
-	headersChan := make(chan kafkaTypes.BlockMessage, 10)
-	txMsgsChan := make(chan kafkaTypes.TransactionMessage, 10)
-	errorMsgsChan := make(chan kafkaTypes.ErrorTriggerMessage, 10)
+	headersChan := make(chan kafkaTypes.BlockMessage, 20)
+	txMsgsChan := make(chan kafkaTypes.TransactionMessage, 20)
+	errorMsgsChan := make(chan kafkaTypes.ErrorTriggerMessage, 20)
 	errorChan := make(chan error, 10)
 	go consumer.ConsumeKafka(ctx, headersChan, txMsgsChan, errorMsgsChan, errorChan)
 
@@ -118,10 +78,23 @@ func TestKafka(t *testing.T) {
 		case err := <-errorChan:
 			t.Fatalf("Received error from consumer: %v", err)
 		case txMsg := <-txMsgsChan:
-			AssertCommonTx(t, txMsg, rightvrsTx, uint64(i), types.LegacyTxType)
-			AssertReceipt(t, txMsg, rightvrsTxReceipt)
-			AssertInnerTxs(t, txMsg, rightvrsTxInnerTxs)
-			AssertChangeseet(t, txMsg, rightvrsTxChangeset)
+			AssertCommonTx(t, txMsg, signedLegacyTx, uint64(i), types.LegacyTxType)
+			AssertReceipt(t, txMsg, txReceipt)
+			AssertInnerTxs(t, txMsg, txInnerTxs)
+			AssertChangeseet(t, txMsg, txChangeset)
+		}
+	}
+
+	for i := 10; i < 20; i++ {
+		select {
+		case err := <-errorChan:
+			t.Fatalf("Received error from consumer: %v", err)
+		case txMsg := <-txMsgsChan:
+			AssertCommonTx(t, txMsg, accessListTx, uint64(i), types.AccessListTxType)
+			AssertAccessList(t, txMsg.AccessList)
+			AssertReceipt(t, txMsg, txReceipt)
+			AssertInnerTxs(t, txMsg, txInnerTxs)
+			AssertChangeseet(t, txMsg, txChangeset)
 		}
 	}
 

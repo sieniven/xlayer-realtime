@@ -6,14 +6,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 )
 
 type TxInfo struct {
 	BlockNumber uint64
-	Tx          types.Transaction
+	Tx          *types.Transaction
 	Receipt     *types.Receipt
-	InnerTxs    []*realtimeTypes.InnerTx
+	InnerTxs    []*types.InnerTx
 	Changeset   *Changeset
 }
 
@@ -30,7 +29,7 @@ func NewTxInfoMap(blockCacheSize int, txCacheSize int) *TxInfoMap {
 	}
 }
 
-func (rm *TxInfoMap) Put(blockNumber uint64, txHash common.Hash, tx types.Transaction, receipt *types.Receipt, innerTxs []*realtimeTypes.InnerTx) {
+func (rm *TxInfoMap) Put(blockNumber uint64, txHash common.Hash, tx *types.Transaction, receipt *types.Receipt, innerTxs []*types.InnerTx) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 	txInfo := TxInfo{
@@ -60,7 +59,7 @@ func (rm *TxInfoMap) Delete(blockNumber uint64) {
 	delete(rm.blockTxs, blockNumber)
 }
 
-func (rm *TxInfoMap) GetTx(txHash common.Hash) (types.Transaction, *types.Receipt, uint64, []*realtimeTypes.InnerTx, bool) {
+func (rm *TxInfoMap) GetTx(txHash common.Hash) (*types.Transaction, *types.Receipt, uint64, []*types.InnerTx, bool) {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 	txInfo, exists := rm.txInfos[txHash]

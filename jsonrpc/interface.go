@@ -5,14 +5,12 @@ import (
 
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/filters"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/internal/ethapi/override"
 	"github.com/ethereum/go-ethereum/rpc"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 )
-
-// Local type definitions to avoid importing internal packages
-type TransactionArgs interface{}
-type StateOverride interface{}
 
 type RealtimeAPI interface {
 	// Block related (see ./realtime_blocks_xlayer.go)
@@ -25,7 +23,7 @@ type RealtimeAPI interface {
 
 	// Receipt related (see ./realtime_receipts_xlayer.go)
 	GetTransactionReceipt(ctx context.Context, hash libcommon.Hash) (map[string]interface{}, error)
-	GetInternalTransactions(ctx context.Context, hash libcommon.Hash) ([]*realtimeTypes.InnerTx, error)
+	GetInternalTransactions(ctx context.Context, hash libcommon.Hash) ([]*types.InnerTx, error)
 
 	// Account related (see ./realtime_accounts_xlayer.go)
 	GetBalance(ctx context.Context, address libcommon.Address) (*hexutil.Big, error)
@@ -34,7 +32,7 @@ type RealtimeAPI interface {
 	GetStorageAt(ctx context.Context, address libcommon.Address, index string) (string, error)
 
 	// Sending related (see ./realtime_call_xlayer.go)
-	Call(ctx context.Context, args TransactionArgs, overrides *StateOverride) (hexutil.Bytes, error)
+	Call(ctx context.Context, args ethapi.TransactionArgs, overrides *override.StateOverride) (hexutil.Bytes, error)
 
 	// Debug related (see ./realtime_debug.go)
 	DebugDumpCache(ctx context.Context) error

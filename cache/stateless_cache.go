@@ -28,7 +28,7 @@ func (cache *StatelessCache) GetHeader(blockNum uint64) (*types.Header, int64, b
 	return cache.blockInfoMap.Get(blockNum)
 }
 
-func (cache *StatelessCache) GetTxInfo(txHash libcommon.Hash) (types.Transaction, *types.Receipt, uint64, []*realtimeTypes.InnerTx, bool) {
+func (cache *StatelessCache) GetTxInfo(txHash libcommon.Hash) (*types.Transaction, *types.Receipt, uint64, []*types.InnerTx, bool) {
 	return cache.txInfoMap.GetTx(txHash)
 }
 
@@ -41,7 +41,7 @@ func (cache *StatelessCache) PutHeader(blockNum uint64, header *types.Header, pr
 	cache.blockInfoMap.PutHeader(blockNum, header, prevTxCount)
 }
 
-func (cache *StatelessCache) PutTxInfo(blockNum uint64, txHash libcommon.Hash, tx types.Transaction, receipt *types.Receipt, innerTxs []*realtimeTypes.InnerTx) {
+func (cache *StatelessCache) PutTxInfo(blockNum uint64, txHash libcommon.Hash, tx *types.Transaction, receipt *types.Receipt, innerTxs []*types.InnerTx) {
 	cache.txInfoMap.Put(blockNum, txHash, tx, receipt, innerTxs)
 }
 

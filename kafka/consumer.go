@@ -15,11 +15,15 @@ type KafkaConsumer struct {
 	config   KafkaConfig
 }
 
-func NewKafkaConsumer(config KafkaConfig) (*KafkaConsumer, error) {
+func NewKafkaConsumer(config KafkaConfig, latestFlag bool) (*KafkaConsumer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = DEFAULT_VERSION
 	saramaConfig.ClientID = config.ClientID
-	saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	if latestFlag {
+		saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	} else {
+		saramaConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+	}
 	saramaConfig.Consumer.Offsets.AutoCommit.Enable = false
 
 	// Create consumer group
@@ -40,7 +44,6 @@ type consumerGroupHandler struct {
 	txMsgsChan    chan kafkaTypes.TransactionMessage
 	errorMsgsChan chan kafkaTypes.ErrorTriggerMessage
 	errorChan     chan error
-	logger        log.Logger
 	txTopic       string
 	blockTopic    string
 	errorTopic    string
@@ -55,7 +58,7 @@ func (h *consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
 }
 
 func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	h.logger.Info("Starting kafka consumption", "topic", claim.Topic(), "partition", claim.Partition(), "offset", claim.InitialOffset())
+	log.Info("Starting kafka consumption", "topic", claim.Topic(), "partition", claim.Partition(), "offset", claim.InitialOffset())
 	for {
 		select {
 		case <-h.ctx.Done():
@@ -70,7 +73,7 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			case h.blockTopic:
 				var blockMsg kafkaTypes.BlockMessage
 				if err := json.Unmarshal(msg.Value, &blockMsg); err != nil {
-					h.logger.Warn("consume claim error, unmarshaling block message", "error", err)
+					log.Warn("consume claim error, unmarshaling block message", "error", err)
 					continue
 				}
 
@@ -86,7 +89,7 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			case h.txTopic:
 				var txMsg kafkaTypes.TransactionMessage
 				if err := json.Unmarshal(msg.Value, &txMsg); err != nil {
-					h.logger.Warn("consume claim error, unmarshaling transaction message", "error", err)
+					log.Warn("consume claim error, unmarshaling transaction message", "error", err)
 					continue
 				}
 
@@ -102,7 +105,7 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			case h.errorTopic:
 				var errorMsg kafkaTypes.ErrorTriggerMessage
 				if err := json.Unmarshal(msg.Value, &errorMsg); err != nil {
-					h.logger.Warn("consume claim error, unmarshaling error trigger message", "error", err)
+					log.Warn("consume claim error, unmarshaling error trigger message", "error", err)
 					continue
 				}
 
@@ -125,14 +128,13 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 }
 
 // ConsumeKafka starts consuming kafka messages from the specified topics
-func (client *KafkaConsumer) ConsumeKafka(ctx context.Context, blockMsgsChan chan kafkaTypes.BlockMessage, txMsgsChan chan kafkaTypes.TransactionMessage, errorMsgsChan chan kafkaTypes.ErrorTriggerMessage, errorChan chan error, logger log.Logger) {
+func (client *KafkaConsumer) ConsumeKafka(ctx context.Context, blockMsgsChan chan kafkaTypes.BlockMessage, txMsgsChan chan kafkaTypes.TransactionMessage, errorMsgsChan chan kafkaTypes.ErrorTriggerMessage, errorChan chan error) {
 	handler := &consumerGroupHandler{
 		ctx:           ctx,
 		blockMsgsChan: blockMsgsChan,
 		txMsgsChan:    txMsgsChan,
 		errorMsgsChan: errorMsgsChan,
 		errorChan:     errorChan,
-		logger:        logger,
 		txTopic:       client.config.TxTopic,
 		blockTopic:    client.config.BlockTopic,
 		errorTopic:    client.config.ErrorTopic,

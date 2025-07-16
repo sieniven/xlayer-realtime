@@ -11,7 +11,7 @@ import (
 
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
@@ -19,8 +19,7 @@ import (
 )
 
 var (
-	ErrNotReady   = fmt.Errorf("state cache not initialized")
-	emptyCodeHash = crypto.Keccak256(nil)
+	ErrNotReady = fmt.Errorf("state cache not initialized")
 )
 
 // PlainStateCache implements the plain state reader with a changeset cache layer.
@@ -232,7 +231,7 @@ func (cache *PlainStateCache) ReadAccountStorage(address libcommon.Address, inca
 }
 
 func (cache *PlainStateCache) ReadAccountCode(address libcommon.Address, incarnation uint64, codeHash libcommon.Hash) ([]byte, error) {
-	if bytes.Equal(codeHash.Bytes(), emptyCodeHash) {
+	if bytes.Equal(codeHash.Bytes(), types.EmptyCodeHash[:]) {
 		return nil, nil
 	}
 
@@ -309,8 +308,8 @@ func (cache *PlainStateCache) unsafeReadAccountData(address libcommon.Address) (
 func (cache *PlainStateCache) createAccount() (*accounts.Account, error) {
 	return &accounts.Account{
 		Initialised: true,
-		Root:        libcommon.BytesToHash(trie.EmptyRoot[:]),
-		CodeHash:    libcommon.BytesToHash(emptyCodeHash),
+		Root:        libcommon.BytesToHash(types.EmptyRootHash[:]),
+		CodeHash:    libcommon.BytesToHash(types.EmptyCodeHash[:]),
 	}, nil
 }
 
