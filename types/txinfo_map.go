@@ -8,14 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type TxInfo struct {
-	BlockNumber uint64
-	Tx          *types.Transaction
-	Receipt     *types.Receipt
-	InnerTxs    []*types.InnerTx
-	Changeset   *Changeset
-}
-
 type TxInfoMap struct {
 	txInfos  map[common.Hash]TxInfo
 	blockTxs map[uint64]map[common.Hash]struct{}
