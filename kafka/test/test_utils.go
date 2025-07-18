@@ -271,7 +271,6 @@ func AssertChangeseet(t *testing.T, msg kafkaTypes.TransactionMessage, changeset
 	assert.Equal(t, len(msg.Changeset.NonceChanges), len(changeset.NonceChanges))
 	assert.Equal(t, len(msg.Changeset.CodeHashChanges), len(changeset.CodeHashChanges))
 	assert.Equal(t, len(msg.Changeset.CodeChanges), len(changeset.CodeChanges))
-	assert.Equal(t, len(msg.Changeset.IncarnationChanges), len(changeset.IncarnationChanges))
 	assert.Equal(t, len(msg.Changeset.StorageChanges), len(changeset.StorageChanges))
 
 	for k, v := range msg.Changeset.DeletedAccounts {
@@ -309,21 +308,14 @@ func AssertChangeseet(t *testing.T, msg kafkaTypes.TransactionMessage, changeset
 		assert.Equal(t, v, msg.Changeset.CodeChanges[k])
 	}
 
-	for k, v := range msg.Changeset.IncarnationChanges {
-		assert.Equal(t, v, changeset.IncarnationChanges[k])
-	}
-	for k, v := range changeset.IncarnationChanges {
-		assert.Equal(t, v, msg.Changeset.IncarnationChanges[k])
-	}
-
 	for k, v := range msg.Changeset.StorageChanges {
 		for item, itemValue := range v {
-			assert.Equal(t, *itemValue, *changeset.StorageChanges[k][item])
+			assert.Equal(t, itemValue, changeset.StorageChanges[k][item])
 		}
 	}
 	for k, v := range changeset.StorageChanges {
 		for item, itemValue := range v {
-			assert.Equal(t, *itemValue, *msg.Changeset.StorageChanges[k][item])
+			assert.Equal(t, itemValue, msg.Changeset.StorageChanges[k][item])
 		}
 	}
 

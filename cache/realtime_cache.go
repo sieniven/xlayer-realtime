@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
 	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
@@ -65,7 +65,7 @@ func ComparePendingBlockContext(a, b *PendingBlockContext) int {
 
 type RealtimeCache struct {
 	// Caches
-	State         *PlainStateCache
+	State         *StateCache
 	Stateless     *StatelessCache
 	CacheDumpPath string
 
@@ -82,8 +82,8 @@ type RealtimeCache struct {
 	pendingBlocks *realtimeTypes.OrderedList[*PendingBlockContext]
 }
 
-func NewRealtimeCache(ctx context.Context, db ethdb.Database, cacheDumpPath string) (*RealtimeCache, error) {
-	stateCache, err := NewPlainStateCache(ctx, db, DefaultStateCacheSize)
+func NewRealtimeCache(ctx context.Context, db state.Reader, cacheDumpPath string) (*RealtimeCache, error) {
+	stateCache, err := NewStateCache(ctx, db, DefaultStateCacheSize)
 	if err != nil {
 		return nil, err
 	}
