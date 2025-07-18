@@ -82,7 +82,7 @@ type RealtimeCache struct {
 	pendingBlocks *realtimeTypes.OrderedList[*PendingBlockContext]
 }
 
-func NewRealtimeCache(ctx context.Context, db state.Reader, cacheDumpPath string) (*RealtimeCache, error) {
+func NewRealtimeCache(ctx context.Context, db state.Database, cacheDumpPath string) (*RealtimeCache, error) {
 	stateCache, err := NewStateCache(ctx, db, DefaultStateCacheSize)
 	if err != nil {
 		return nil, err
@@ -123,10 +123,11 @@ func (cache *RealtimeCache) GetExecutionHeight() uint64 {
 	return cache.highestExecutionHeight.Load()
 }
 
-func (cache *RealtimeCache) PutExecutionHeight(blockNum uint64) {
-	if blockNum > cache.highestExecutionHeight.Load() {
-		cache.highestExecutionHeight.Store(blockNum)
+func (cache *RealtimeCache) UpdateExecution(finishEntry realtimeTypes.FinishedEntry) {
+	if finishEntry.Height > cache.highestExecutionHeight.Load() {
+		cache.highestExecutionHeight.Store(finishEntry.Height)
 	}
+	cache.State.UpdateLatestRoot(finishEntry.Root)
 }
 
 func (cache *RealtimeCache) GetHighestPendingHeight() uint64 {

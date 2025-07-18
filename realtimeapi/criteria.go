@@ -1,4 +1,4 @@
-package jsonrpc
+package realtimeapi
 
 type StreamCriteria struct {
 	NewHeads             bool

@@ -25,16 +25,17 @@ var (
 // in-memory the state changes.
 type StateCache struct {
 	ctx        context.Context
-	db         state.Reader
+	db         state.Database
 	initHeight atomic.Uint64
 
 	cacheLock    sync.RWMutex
+	latestRoot   libcommon.Hash
 	accountCache map[libcommon.Address]*types.StateAccount
 	storageCache map[string]libcommon.Hash
 	codeCache    map[libcommon.Hash][]byte
 }
 
-func NewStateCache(ctx context.Context, db state.Reader, size int) (*StateCache, error) {
+func NewStateCache(ctx context.Context, db state.Database, size int) (*StateCache, error) {
 	return &StateCache{
 		ctx:          ctx,
 		db:           db,
@@ -55,6 +56,18 @@ func (cache *StateCache) TryInitCache(executionHeight uint64) error {
 	cache.initHeight.Store(executionHeight)
 
 	return nil
+}
+
+func (cache *StateCache) UpdateLatestRoot(latestRoot libcommon.Hash) {
+	cache.cacheLock.Lock()
+	defer cache.cacheLock.Unlock()
+	cache.latestRoot = latestRoot
+}
+
+func (cache *StateCache) GetLatestRoot() libcommon.Hash {
+	cache.cacheLock.RLock()
+	defer cache.cacheLock.RUnlock()
+	return cache.latestRoot
 }
 
 func (cache *StateCache) Clear() {
@@ -260,19 +273,35 @@ func (cache *StateCache) CodeSize(addr libcommon.Address, codeHash libcommon.Has
 
 // -------------- Chainstate db reader operations --------------
 func (cache *StateCache) GetAccountFromChainDb(address libcommon.Address) (*types.StateAccount, error) {
-	return cache.db.Account(address)
+	reader, err := cache.db.Reader(cache.latestRoot)
+	if err != nil {
+		return nil, err
+	}
+	return reader.Account(address)
 }
 
 func (cache *StateCache) GetAccountStorageFromChainDb(address libcommon.Address, key libcommon.Hash) (libcommon.Hash, error) {
-	return cache.db.Storage(address, key)
+	reader, err := cache.db.Reader(cache.latestRoot)
+	if err != nil {
+		return libcommon.Hash{}, err
+	}
+	return reader.Storage(address, key)
 }
 
 func (cache *StateCache) GetAccountCodeFromChainDb(address libcommon.Address, codeHash libcommon.Hash) ([]byte, error) {
-	return cache.db.Code(address, codeHash)
+	reader, err := cache.db.Reader(cache.latestRoot)
+	if err != nil {
+		return nil, err
+	}
+	return reader.Code(address, codeHash)
 }
 
 func (cache *StateCache) GetAccountCodeSizeFromChainDb(address libcommon.Address, codeHash libcommon.Hash) (int, error) {
-	return cache.db.CodeSize(address, codeHash)
+	reader, err := cache.db.Reader(cache.latestRoot)
+	if err != nil {
+		return 0, err
+	}
+	return reader.CodeSize(address, codeHash)
 }
 
 // -------------- Debug operations --------------
@@ -310,14 +339,14 @@ func (cache *StateCache) DebugDumpToFile(cacheDumpPath string) error {
 
 // DebugCompare compares the state cache with the chain-state db, and returns the
 // list of account addresses that have differing states.
-func (cache *StateCache) DebugCompare() []string {
+func (cache *StateCache) DebugCompare(reader state.Reader) []string {
 	cache.cacheLock.RLock()
 	defer cache.cacheLock.RUnlock()
 
 	mismatches := []string{}
 	for addr, accCache := range cache.accountCache {
 		log.Info("[Realtime] Comparing account", "address", addr.String())
-		accDb, err := cache.db.Account(addr)
+		accDb, err := reader.Account(addr)
 		if err != nil {
 			mismatch := fmt.Sprintf("chain-state db reader error, failed to read account. address: %s, error: %v", addr.String(), err)
 			mismatches = append(mismatches, mismatch)
