@@ -74,7 +74,11 @@ func (cache *StateCache) Clear() {
 	cache.initHeight.Store(0)
 }
 
-// -------------- State cache write operations --------------
+func (cache *StateCache) GetInitHeight() uint64 {
+	return cache.initHeight.Load()
+}
+
+// -------------- Cache operations --------------
 func (cache *StateCache) ApplyChangeset(changeset *realtimeTypes.Changeset, blockNumber uint64, txIndex uint) error {
 	// Handle account data changes
 	addressChanges := make(map[libcommon.Address]*types.StateAccount)
@@ -157,11 +161,40 @@ func (cache *StateCache) applyChangesetToAccountData(changeset *realtimeTypes.Ch
 	return nil
 }
 
-// -------------- StateReader implementation --------------
-func (cache *StateCache) GetInitHeight() uint64 {
-	return cache.initHeight.Load()
+func (cache *StateCache) getOrCreateAccount(address libcommon.Address, addressChanges map[libcommon.Address]*types.StateAccount) (*types.StateAccount, error) {
+	account, ok := addressChanges[address]
+	if !ok {
+		var err error
+		account, err = cache.unsafeReadAccountData(address)
+		if err != nil {
+			return nil, err
+		}
+
+		if account == nil {
+			// Non-existent account, create new account
+			account = cache.createAccount()
+		}
+		addressChanges[address] = account
+	}
+
+	return account, nil
 }
 
+func (cache *StateCache) unsafeReadAccountData(address libcommon.Address) (*types.StateAccount, error) {
+	acc, ok := cache.accountCache[address]
+	if ok {
+		return acc, nil
+	}
+
+	// Cache miss, read from chainstate db
+	return cache.GetAccountFromChainDb(address)
+}
+
+func (cache *StateCache) createAccount() *types.StateAccount {
+	return types.NewEmptyStateAccount()
+}
+
+// -------------- StateReader implementation --------------
 func (cache *StateCache) Account(addr libcommon.Address) (*types.StateAccount, error) {
 	if cache.initHeight.Load() == 0 {
 		return nil, ErrNotReady
@@ -225,41 +258,7 @@ func (cache *StateCache) CodeSize(addr libcommon.Address, codeHash libcommon.Has
 	return len(code), err
 }
 
-// -------------- Internal operations --------------
-func (cache *StateCache) getOrCreateAccount(address libcommon.Address, addressChanges map[libcommon.Address]*types.StateAccount) (*types.StateAccount, error) {
-	account, ok := addressChanges[address]
-	if !ok {
-		var err error
-		account, err = cache.unsafeReadAccountData(address)
-		if err != nil {
-			return nil, err
-		}
-
-		if account == nil {
-			// Non-existent account, create new account
-			account = cache.createAccount()
-		}
-		addressChanges[address] = account
-	}
-
-	return account, nil
-}
-
-func (cache *StateCache) unsafeReadAccountData(address libcommon.Address) (*types.StateAccount, error) {
-	acc, ok := cache.accountCache[address]
-	if ok {
-		return acc, nil
-	}
-
-	// Cache miss, read from chainstate db
-	return cache.GetAccountFromChainDb(address)
-}
-
-func (cache *StateCache) createAccount() *types.StateAccount {
-	return types.NewEmptyStateAccount()
-}
-
-// -------------- Chain state db reader operations --------------
+// -------------- Chainstate db reader operations --------------
 func (cache *StateCache) GetAccountFromChainDb(address libcommon.Address) (*types.StateAccount, error) {
 	return cache.db.Account(address)
 }
