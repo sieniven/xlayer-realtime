@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/internal/ethapi/override"
 	"github.com/ethereum/go-ethereum/rpc"
+	realtimeSub "github.com/sieniven/xlayer-realtime/subscription"
 )
 
 type RealtimeAPI interface {
@@ -41,6 +42,6 @@ type RealtimeAPI interface {
 
 type RealtimeSubscriptionAPI interface {
 	// Ws subscription related (see ./realtime_filters_xlayer.go)
-	RealtimeTransactions(ctx context.Context, criteria StreamCriteria) (*rpc.Subscription, error)
+	RealtimeTransactions(ctx context.Context, criteria realtimeSub.StreamCriteria) (*rpc.Subscription, error)
 	Logs(ctx context.Context, crit filters.FilterCriteria) (*rpc.Subscription, error)
 }

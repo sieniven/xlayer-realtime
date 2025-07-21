@@ -8,7 +8,6 @@ import (
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/log"
 	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
 )
 
@@ -29,15 +28,13 @@ type RealtimeSubscription struct {
 	rtSubs     *SyncMap[SubID, Sub[RealtimeSubMessage]]
 	logsSubs   *SyncMap[SubID, *LogsFilter]
 	newMsgChan chan RealtimeSubMessage
-	logger     log.Logger
 }
 
-func NewRealtimeSubscription(ctx context.Context, logger log.Logger) *RealtimeSubscription {
+func NewRealtimeSubscription() *RealtimeSubscription {
 	return &RealtimeSubscription{
 		rtSubs:     NewSyncMap[SubID, Sub[RealtimeSubMessage]](),
 		logsSubs:   NewSyncMap[SubID, *LogsFilter](),
 		newMsgChan: make(chan RealtimeSubMessage, DefaultChannelSize),
-		logger:     logger,
 	}
 }
 
@@ -137,13 +134,13 @@ func (ff *RealtimeSubscription) UnsubscribeRealtime(id SubID) bool {
 	return true
 }
 
-func (ff *RealtimeSubscription) SubscribeRealtimeLogs(size int, crit filters.FilterCriteria) (<-chan *types.Log, SubID, error) {
+func (ff *RealtimeSubscription) SubscribeRealtimeLogs(crit filters.FilterCriteria) (<-chan *types.Log, SubID, error) {
 	if ff.rtSubs.Len()+ff.logsSubs.Len() > MaxSubscriptionsCount {
 		return nil, "", fmt.Errorf("max subscriptions count reached")
 	}
 
 	id := SubID(generateSubID())
-	sub := newChanSub[*types.Log](size)
+	sub := newChanSub[*types.Log](DefaultSubscribeChannelSize)
 	filter := &LogsFilter{addrs: map[libcommon.Address]int{}, topics: map[libcommon.Hash]int{}, sender: sub}
 	filter.addrs = map[libcommon.Address]int{}
 	if len(crit.Addresses) == 0 {

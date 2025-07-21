@@ -12,6 +12,7 @@ import (
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 )
@@ -339,43 +340,35 @@ func (cache *StateCache) DebugDumpToFile(cacheDumpPath string) error {
 
 // DebugCompare compares the state cache with the chain-state db, and returns the
 // list of account addresses that have differing states.
-func (cache *StateCache) DebugCompare(reader state.Reader) []string {
+func (cache *StateCache) DebugCompare(statedb vm.StateDB) []string {
 	cache.cacheLock.RLock()
 	defer cache.cacheLock.RUnlock()
 
 	mismatches := []string{}
 	for addr, accCache := range cache.accountCache {
 		log.Info("[Realtime] Comparing account", "address", addr.String())
-		accDb, err := reader.Account(addr)
-		if err != nil {
-			mismatch := fmt.Sprintf("chain-state db reader error, failed to read account. address: %s, error: %v", addr.String(), err)
-			mismatches = append(mismatches, mismatch)
-			continue
-		}
-		if accDb == nil {
-			mismatch := fmt.Sprintf("account %s not found in database", addr.String())
-			mismatches = append(mismatches, mismatch)
-			continue
-		}
 
-		if accCache.Nonce != accDb.Nonce {
-			mismatch := fmt.Sprintf("nonce mismatch, account %s, cache nonce: %d, db nonce: %d", addr.String(), accCache.Nonce, accDb.Nonce)
+		accDbNonce := statedb.GetNonce(addr)
+		if accCache.Nonce != accDbNonce {
+			mismatch := fmt.Sprintf("nonce mismatch, account %s, cache nonce: %d, db nonce: %d", addr.String(), accCache.Nonce, accDbNonce)
 			mismatches = append(mismatches, mismatch)
 		}
 
-		if accCache.Balance.Cmp(accDb.Balance) != 0 {
-			mismatch := fmt.Sprintf("balance mismatch, account %s, cache balance: %d, db balance: %d", addr.String(), accCache.Balance.ToBig(), accDb.Balance.ToBig())
+		accDbBalance := statedb.GetBalance(addr)
+		if accCache.Balance.Cmp(accDbBalance) != 0 {
+			mismatch := fmt.Sprintf("balance mismatch, account %s, cache balance: %d, db balance: %d", addr.String(), accCache.Balance.ToBig(), accDbBalance.ToBig())
 			mismatches = append(mismatches, mismatch)
 		}
 
 		// Note that realtime state cache does not update the state account storage trie root
 		if accCache.Root != types.EmptyRootHash {
-			mismatch := fmt.Sprintf("root mismatch, account %s, cache root: %s, db root: %s", addr.String(), accCache.Root.String(), accDb.Root.String())
+			mismatch := fmt.Sprintf("root mismatch, account %s, cache root: %s, db root: %s", addr.String(), accCache.Root.String(), types.EmptyRootHash)
 			mismatches = append(mismatches, mismatch)
 		}
 
-		if !bytes.Equal(accCache.CodeHash, accDb.CodeHash) {
-			mismatch := fmt.Sprintf("codehash mismatch, account %s, cache codehash: %s, db codehash: %s", addr.String(), hex.EncodeToString(accCache.CodeHash), hex.EncodeToString(accDb.CodeHash))
+		accDbCodeHash := statedb.GetCodeHash(addr)
+		if !bytes.Equal(accCache.CodeHash, accDbCodeHash[:]) {
+			mismatch := fmt.Sprintf("codehash mismatch, account %s, cache codehash: %s, db codehash: %s", addr.String(), hex.EncodeToString(accCache.CodeHash), accDbCodeHash.String())
 			mismatches = append(mismatches, mismatch)
 		}
 	}

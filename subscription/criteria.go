@@ -1,4 +1,4 @@
-package realtimeapi
+package subscription
 
 type StreamCriteria struct {
 	NewHeads             bool
