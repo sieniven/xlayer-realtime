@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -25,9 +26,9 @@ var (
 	kafkaCache *cache.KafkaCache
 )
 
-func ListenTxKafkaProducer(
+func ListenKafkaProducer(
 	ctx context.Context,
-	txKafkaProducer *kafka.KafkaProducer,
+	kafkaProducer *kafka.KafkaProducer,
 	blockInfoChan chan *realtimeTypes.BlockInfo,
 	txInfoChan chan *state.TxInfo,
 	isSequencer bool) {
@@ -45,28 +46,30 @@ func ListenTxKafkaProducer(
 			return
 		case blockInfo := <-blockInfoChan:
 			currHeight = blockInfo.Header.Number.Uint64()
-			err = txKafkaProducer.SendKafkaBlockInfo(ctx, blockInfo.Header, blockInfo.TxCount)
+			err = kafkaProducer.SendKafkaBlockInfo(blockInfo.Header, blockInfo.TxCount)
+			log.Debug(fmt.Sprintf("[Realtime] Sent block info message for block number %d with txCount %d", blockInfo.Header.Number, blockInfo.TxCount))
 		case txInfo := <-txInfoChan:
 			currHeight = txInfo.BlockNumber
 			if currHeight <= 1 {
 				continue
 			}
 			changeset := state.CollectChangeset(txInfo.Entries)
-			err = txKafkaProducer.SendKafkaTransaction(ctx, txInfo.BlockNumber, txInfo.Tx, txInfo.Receipt, txInfo.InnerTxs, changeset)
+			err = kafkaProducer.SendKafkaTransaction(txInfo.BlockNumber, txInfo.Tx, txInfo.Receipt, txInfo.InnerTxs, changeset)
+			log.Debug(fmt.Sprintf("[Realtime] Sent tx message for block number %d with txHash %x", txInfo.BlockNumber, txInfo.Tx.Hash()))
 		}
 
 		if err != nil {
-			log.Error("[Realtime] Failed to send kafka message, trigger error message", "error", err, "currHeight", currHeight)
-			err = txKafkaProducer.SendKafkaErrorTrigger(ctx, currHeight)
+			log.Error(fmt.Sprintf("[Realtime] Failed to send kafka message, trigger error message. error: %v, currHeight: %d", err, currHeight))
+			err = kafkaProducer.SendKafkaErrorTrigger(currHeight)
 			if err != nil {
-				log.Error("[Realtime] Failed to send error trigger message", "error", err, "blockNumber", currHeight)
+				log.Error(fmt.Sprintf("[Realtime] Failed to send error trigger message. error: %v, currHeight: %d", err, currHeight))
 			}
 			continue
 		}
 	}
 }
 
-func ListenTxKafkaConsumer(
+func ListenKafkaConsumer(
 	ctx context.Context,
 	txKafkaConsumer *kafka.KafkaConsumer,
 	realtimeCache *cache.RealtimeCache,
@@ -82,7 +85,7 @@ func ListenTxKafkaConsumer(
 	var err error
 	kafkaCache, err = cache.NewKafkaCache(MaxKafkaCacheSize)
 	if err != nil {
-		log.Error("[Realtime] Failed to initialize kafka cache", "error", err)
+		log.Error(fmt.Sprintf("[Realtime] Failed to initialize kafka cache. error: %v", err))
 		return
 	}
 
@@ -106,19 +109,19 @@ func ListenTxKafkaConsumer(
 			if finishEntry.Height < realtimeCache.GetExecutionHeight() {
 				// Chain rollback. Reset realtime cache
 				resetFlag.Store(true)
-				log.Debug("[Realtime] Chain rollback detected, resetting realtime cache", "finishHeight", finishEntry.Height)
+				log.Debug(fmt.Sprintf("[Realtime] Chain rollback detected, resetting realtime cache. finishHeight: %d", finishEntry.Height))
 			}
 			realtimeCache.UpdateExecution(finishEntry)
 			log.Debug("[Realtime] Received finish signal from execution", "finishHeight", finishEntry.Height)
 		case blockMsg := <-blockMsgsChan:
 			header, _, err := blockMsg.GetBlockInfo()
 			if err != nil {
-				log.Error("[Realtime] Failed to consume block message from kafka", "error", err)
+				log.Error(fmt.Sprintf("[Realtime] Failed to consume block message from kafka. error: %v", err))
 				continue
 			}
 			if header.Number.Uint64() <= realtimeCache.GetExecutionHeight() {
 				// Ignore block msgs from previous blocks
-				log.Debug("[Realtime] Ignoring block message from previous block", "blockNum", header.Number)
+				log.Debug(fmt.Sprintf("[Realtime] Ignoring block message from previous block. blockNum: %d", header.Number))
 				continue
 			}
 			kafkaCache.BlockMsgCache.Add(&blockMsg)
@@ -126,15 +129,15 @@ func ListenTxKafkaConsumer(
 				// Publish block to subscriptions
 				subService.BroadcastNewMsg(&blockMsg, nil)
 			}
-			log.Debug("[Realtime] Received block message", "blockNum", header.Number)
+			log.Debug(fmt.Sprintf("[Realtime] Received block message. blockNum: %d", header.Number))
 		case txMsg := <-txMsgsChan:
 			if err := txMsg.Validate(); err != nil {
-				log.Error("[Realtime] Failed to consume transaction message from kafka", "error", err)
+				log.Error(fmt.Sprintf("[Realtime] Failed to consume transaction message from kafka. error: %v", err))
 				continue
 			}
 			if txMsg.BlockNumber <= realtimeCache.GetExecutionHeight() {
 				// Ignore txs from previous blocks
-				log.Debug("[Realtime] Ignoring transaction message from previous block", "blockNum", txMsg.BlockNumber)
+				log.Debug(fmt.Sprintf("[Realtime] Ignoring transaction message from previous block. blockNum: %d", txMsg.BlockNumber))
 				continue
 			}
 			kafkaCache.TxMsgCache.Add(&txMsg)
@@ -142,20 +145,21 @@ func ListenTxKafkaConsumer(
 				// Publish tx to subscriptions
 				subService.BroadcastNewMsg(nil, &txMsg)
 			}
-			log.Debug("[Realtime] Received transaction message", "blockNum", txMsg.BlockNumber)
+			log.Debug(fmt.Sprintf("[Realtime] Received transaction message. blockNum: %d", txMsg.BlockNumber))
 		case errorTriggerMsg := <-errorMsgsChan:
 			resetFlag.Store(true)
 			triggerHeight := errorTriggerMsg.BlockNumber
-			log.Debug("[Realtime] Received error trigger message, flushing realtime cache", "triggerHeight", triggerHeight)
+			log.Debug(fmt.Sprintf("[Realtime] Received error trigger message, flushing realtime cache. triggerHeight: %d", triggerHeight))
 		case err := <-errorChan:
 			errorFlag.Store(true)
-			log.Error("[Realtime] Kafka consumer failed", "error", err)
+			log.Error(fmt.Sprintf("[Realtime] Kafka consumer failed. error: %v", err))
 			return
 		}
 	}
 }
 
 func realtimeLoop(ctx context.Context, realtimeCache *cache.RealtimeCache) {
+	log.Info("[Realtime] Starting realtime loop")
 	for {
 		select {
 		case <-ctx.Done():
@@ -191,11 +195,12 @@ func realtimeLoop(ctx context.Context, realtimeCache *cache.RealtimeCache) {
 		if pendingHeight != 0 && pendingHeight < lastExecutionHeight {
 			// Execution is ahead of pending cache. This should not happen
 			resetFlag.Store(true)
-			log.Error("[Realtime] Execution height is ahead of cache confirm height", "pendingHeight", pendingHeight, "lastExecutionHeight", lastExecutionHeight)
+			log.Error(fmt.Sprintf("[Realtime] Execution height is ahead of cache confirm height. pendingHeight: %d, lastExecutionHeight: %d", pendingHeight, lastExecutionHeight))
 			continue
 		}
 
 		// Sync state cache with kafka data
+		log.Debug(fmt.Sprintf("[Realtime] Syncing state cache with kafka data. pendingHeight: %d, lastExecutionHeight: %d", pendingHeight, lastExecutionHeight))
 		lowestKafkaHeight := kafkaCache.GetLowestBlockHeight()
 		if lowestKafkaHeight != 0 {
 			// New block msg to process. Enforce that header msgs are processed in order
@@ -216,7 +221,7 @@ func realtimeLoop(ctx context.Context, realtimeCache *cache.RealtimeCache) {
 				if err != nil {
 					// Apply state error. Reset cache
 					resetFlag.Store(true)
-					log.Error("[Realtime] Failed to apply block msg and tx msgs", "error", err, "nextHeight", nextHeight)
+					log.Error(fmt.Sprintf("[Realtime] Failed to apply block msg and tx msgs. error: %v, nextHeight: %d", err, nextHeight))
 				}
 
 				// Flush block msg cache
@@ -225,11 +230,12 @@ func realtimeLoop(ctx context.Context, realtimeCache *cache.RealtimeCache) {
 		}
 
 		// Handle pending blocks
+		log.Debug("[Realtime] Handling realtime cache pending blocks")
 		err := realtimeCache.HandlePendingBlocks(kafkaCache)
 		if err != nil {
 			// Handle pending blocks error. Reset cache
 			resetFlag.Store(true)
-			log.Error("[Realtime] Handle pending blocks failed", "error", err)
+			log.Error(fmt.Sprintf("[Realtime] Handle pending blocks failed. error: %v", err))
 		}
 
 		duration := time.Since(startTime)
@@ -242,37 +248,40 @@ func realtimeLoop(ctx context.Context, realtimeCache *cache.RealtimeCache) {
 // tryInitRealtimeCache checks if the realtime cache can be initialized by comparing
 // the current execution height with the lowest kafka cache height.
 func tryInitRealtimeCache(realtimeCache *cache.RealtimeCache) bool {
+	log.Debug("[Realtime] Trying to initialize realtime cache")
 	executionHeight := realtimeCache.GetExecutionHeight()
 	lowestKafkaHeight := kafkaCache.GetLowestBlockHeight()
 	if executionHeight == 0 || lowestKafkaHeight == 0 {
 		// No kafka message or rpc execution. Skip init
+		log.Debug(fmt.Sprintf("[Realtime] Init realtime cache failed, no kafka message or rpc execution. lowestKafkaHeight: %d, executionHeight: %d", lowestKafkaHeight, executionHeight))
 		return false
 	}
 
 	if lowestKafkaHeight > executionHeight {
 		// The current execution height is behind kafka cache height. We will wait for the execution
 		// height to catch up to kafka cache height before re-initializing the state cache.
-		log.Info("[Realtime] Init realtime cache failed, waiting for execution height to catch up to kafka cache height", "lowestKafkaHeight", lowestKafkaHeight, "executionHeight", executionHeight)
+		log.Info(fmt.Sprintf("[Realtime] Init realtime cache failed, waiting for execution height to catch up to kafka cache height. lowestKafkaHeight: %d, executionHeight: %d", lowestKafkaHeight, executionHeight))
 		return false
 	}
 
 	realtimeCache.Clear()
 	err := realtimeCache.TryInitStateCache(executionHeight)
 	if err != nil {
-		log.Error("[Realtime] Failed to initialize state cache", "error", err)
+		log.Error(fmt.Sprintf("[Realtime] Failed to initialize state cache. error: %v", err))
 		return false
 	}
 
 	// Flush all kafka data less than or equal to state cache height
 	kafkaCache.Flush(executionHeight)
 	readyFlag.Store(true)
-	log.Info("[Realtime] Realtime cache initialized", "executionHeight", executionHeight)
+	log.Info(fmt.Sprintf("[Realtime] Realtime cache initialized. executionHeight: %d", executionHeight))
 
 	return true
 }
 
 // resetRealtimeCache clears the realtime cache and resets the state flags
 func resetRealtimeCache(realtimeCache *cache.RealtimeCache) {
+	log.Debug("[Realtime] Resetting realtime cache")
 	realtimeCache.Clear()
 	resetFlag.Store(false)
 	readyFlag.Store(false)
