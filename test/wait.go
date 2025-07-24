@@ -44,7 +44,7 @@ func WaitMinedRealtime(ctx context.Context, rtclient *rtclient.RealtimeClient, e
 		if err == nil && receipt != nil {
 			if receipt.Status == types.ReceiptStatusFailed {
 				// Get revert reason
-				reason, reasonErr := RevertReason(ctx, ethclient, tx, receipt.BlockNumber)
+				reason, reasonErr := RevertReasonRealtime(ctx, *rtclient, tx)
 				if reasonErr != nil {
 					reason = reasonErr.Error()
 				}

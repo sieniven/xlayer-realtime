@@ -2,6 +2,7 @@ package rtclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -23,6 +24,13 @@ type txExtraInfo struct {
 	BlockNumber *string         `json:"blockNumber,omitempty"`
 	BlockHash   *common.Hash    `json:"blockHash,omitempty"`
 	From        *common.Address `json:"from,omitempty"`
+}
+
+func (tx *rpcTransaction) UnmarshalJSON(msg []byte) error {
+	if err := json.Unmarshal(msg, &tx.tx); err != nil {
+		return err
+	}
+	return json.Unmarshal(msg, &tx.txExtraInfo)
 }
 
 type RealtimeClient struct {
@@ -58,14 +66,14 @@ func (rc *RealtimeClient) RealtimeBlockNumber(ctx context.Context) (uint64, erro
 // RealtimeGetBlockTransactionCountByNumber returns the number of transactions in a block by number in real-time
 func (rc *RealtimeClient) RealtimeGetBlockTransactionCountByNumber(ctx context.Context, blockNumber uint64) (uint64, error) {
 	var result hexutil.Uint64
-	err := rc.c.CallContext(ctx, &result, "realtime_getBlockTransactionCountByNumber")
+	err := rc.c.CallContext(ctx, &result, "realtime_getBlockTransactionCountByNumber", blockNumber)
 	return uint64(result), err
 }
 
 // RealtimeGetTransactionByHash returns the information about a transaction requested by transaction hash in real-time
 func (rc *RealtimeClient) RealtimeGetTransactionByHash(ctx context.Context, txHash common.Hash, includeExtraInfo *bool) (*types.Transaction, error) {
 	var json *rpcTransaction
-	err := rc.c.CallContext(ctx, &json, "eth_getTransactionByHash", txHash)
+	err := rc.c.CallContext(ctx, &json, "eth_getTransactionByHash", txHash, includeExtraInfo)
 	if err != nil {
 		return nil, err
 	} else if json == nil {
@@ -183,16 +191,6 @@ func (rc *RealtimeClient) RealtimeGetTokenBalance(
 	}
 
 	return balance, nil
-}
-
-// RealtimeDumpStateCache dumps the state cache
-func (rc *RealtimeClient) RealtimeDumpCache(ctx context.Context) error {
-	var result interface{}
-	err := rc.c.CallContext(ctx, &result, "realtime_debugDumpCache")
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (rc *RealtimeClient) EthGetTokenBalance(

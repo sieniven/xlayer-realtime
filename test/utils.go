@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 	"testing"
@@ -68,7 +69,33 @@ func GetAuth(privateKeyStr string, chainID uint64) (*bind.TransactOpts, error) {
 }
 
 func GetTestChainConfig(chainID uint64) *params.ChainConfig {
-	return params.TestChainConfig
+	return &params.ChainConfig{
+		ChainID:                 big.NewInt(int64(chainID)),
+		HomesteadBlock:          big.NewInt(0),
+		DAOForkBlock:            nil,
+		DAOForkSupport:          false,
+		EIP150Block:             big.NewInt(0),
+		EIP155Block:             big.NewInt(0),
+		EIP158Block:             big.NewInt(0),
+		ByzantiumBlock:          big.NewInt(0),
+		ConstantinopleBlock:     big.NewInt(0),
+		PetersburgBlock:         big.NewInt(0),
+		IstanbulBlock:           big.NewInt(0),
+		MuirGlacierBlock:        big.NewInt(0),
+		BerlinBlock:             big.NewInt(0),
+		LondonBlock:             big.NewInt(0),
+		ArrowGlacierBlock:       big.NewInt(0),
+		GrayGlacierBlock:        big.NewInt(0),
+		MergeNetsplitBlock:      nil,
+		ShanghaiTime:            nil,
+		CancunTime:              nil,
+		PragueTime:              nil,
+		OsakaTime:               nil,
+		VerkleTime:              nil,
+		TerminalTotalDifficulty: big.NewInt(math.MaxInt64),
+		Ethash:                  new(params.EthashConfig),
+		Clique:                  nil,
+	}
 }
 
 func nativeTransferTx(t *testing.T, ctx context.Context, client *ethclient.Client, amount *big.Int, toAddress string) *types.Transaction {
@@ -172,7 +199,7 @@ func erc20TransferTx(
 	transferERC20TokenTx := types.NewTransaction(
 		nonce,
 		erc20Address,
-		amount,
+		big.NewInt(0),
 		60000,
 		gasPrice,
 		data,
@@ -407,8 +434,14 @@ func RevertReason(
 		return "", nil
 	}
 
+	signer := types.MakeSigner(GetTestChainConfig(DefaultL2ChainID), big.NewInt(1), 0)
+	from, err := types.Sender(signer, tx)
+	if err != nil {
+		return "", err
+	}
+
 	msg := ethereum.CallMsg{
-		From: tx.From(),
+		From: from,
 		To:   tx.To(),
 		Gas:  tx.Gas(),
 
@@ -421,6 +454,36 @@ func RevertReason(
 	}
 
 	unpackedMsg, err := abi.UnpackRevert(hex)
+	if err != nil {
+		fmt.Printf("failed to get the revert message for tx %v: %v\n", tx.Hash(), err)
+		return "", errors.New("execution reverted")
+	}
+
+	return unpackedMsg, nil
+}
+
+// RevertReasonRealtime returns the revert reason for a tx that has a receipt with failed status
+func RevertReasonRealtime(
+	ctx context.Context,
+	client rtclient.RealtimeClient,
+	tx *types.Transaction,
+) (string, error) {
+	if tx == nil {
+		return "", nil
+	}
+
+	signer := types.MakeSigner(GetTestChainConfig(DefaultL2ChainID), big.NewInt(1), 0)
+	from, err := types.Sender(signer, tx)
+	if err != nil {
+		return "", err
+	}
+
+	hex, err := client.RealtimeCall(ctx, from, *tx.To(), fmt.Sprintf("0x%x", tx.Gas()), fmt.Sprintf("0x%x", tx.GasPrice()), fmt.Sprintf("0x%x", tx.Value()), fmt.Sprintf("0x%x", tx.Data()))
+	if err != nil {
+		return "", err
+	}
+
+	unpackedMsg, err := abi.UnpackRevert(common.FromHex(hex))
 	if err != nil {
 		fmt.Printf("failed to get the revert message for tx %v: %v\n", tx.Hash(), err)
 		return "", errors.New("execution reverted")
