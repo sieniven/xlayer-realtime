@@ -9,7 +9,8 @@ import (
 )
 
 func (api *RealtimeAPIImpl) DebugDumpCache(ctx context.Context) error {
-	if !api.enableFlag || api.cacheDB == nil {
+	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
+		// Custom for realtime
 		return ErrRealtimeNotEnabled
 	}
 
@@ -21,8 +22,9 @@ func (api *RealtimeAPIImpl) DebugDumpCache(ctx context.Context) error {
 	return nil
 }
 
-func (api *RealtimeAPIImpl) DebugCompareStateCache(ctx context.Context) ([]string, error) {
-	if !api.enableFlag || api.cacheDB == nil || api.cacheDB.State == nil {
+func (api *RealtimeAPIImpl) DebugCompareStateCache(ctx context.Context) (*RealtimeDebugResult, error) {
+	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
+		// Custom for realtime
 		return nil, ErrRealtimeNotEnabled
 	}
 
@@ -31,6 +33,9 @@ func (api *RealtimeAPIImpl) DebugCompareStateCache(ctx context.Context) ([]strin
 		return nil, err
 	}
 
-	mismatches := api.cacheDB.State.DebugCompare(statedb)
-	return mismatches, nil
+	return &RealtimeDebugResult{
+		ConfirmHeight:   api.cacheDB.GetHighestConfirmHeight(),
+		ExecutionHeight: api.cacheDB.GetExecutionHeight(),
+		Mismatches:      api.cacheDB.State.DebugCompare(statedb),
+	}, nil
 }

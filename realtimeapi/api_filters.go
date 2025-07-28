@@ -4,29 +4,22 @@ import (
 	"context"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	realtimeSub "github.com/sieniven/xlayer-realtime/subscription"
 )
 
-type RealtimeResult struct {
-	Header   *types.Header      `json:"Header,omitempty"`
-	TxHash   string             `json:"TxHash,omitempty"`
-	TxData   *types.Transaction `json:"TxData,omitempty"`
-	Receipt  *types.Receipt     `json:"Receipt,omitempty"`
-	InnerTxs []*types.InnerTx   `json:"InnerTxs,omitempty"`
-}
-
 // Realtime send a notification each time when a transaction was received in real-time.
 func (api *RealtimeAPIImpl) Realtime(ctx context.Context, criteria realtimeSub.StreamCriteria) (*rpc.Subscription, error) {
-	if !api.enableFlag || api.cacheDB == nil {
+	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
+		// Custom for realtime
 		return &rpc.Subscription{}, ErrRealtimeNotEnabled
 	}
 
 	if api.subService == nil {
-		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+		// Custom for realtime
+		return &rpc.Subscription{}, ErrRealtimeNotEnabled
 	}
 
 	notifier, supported := rpc.NotifierFromContext(ctx)
@@ -51,26 +44,24 @@ func (api *RealtimeAPIImpl) Realtime(ctx context.Context, criteria realtimeSub.S
 					return
 				}
 
+				result := RealtimeSubResult{}
+				sendFlag := false
 				if criteria.NewHeads && msg.BlockMsg != nil {
-					header, _, err := msg.BlockMsg.GetBlockInfo()
+					header, _, _, err := msg.BlockMsg.GetBlockInfo()
 					if err != nil {
 						log.Warn("[realtime subscription] error getting block info", "err", err)
 					}
-
-					result := RealtimeResult{Header: header}
-					err = notifier.Notify(rpcSub.ID, result)
-					if err != nil {
-						log.Warn("[realtime subscription] error while notifying subscription", "err", err)
-					}
+					result.Header = header
+					sendFlag = true
 				}
 
 				if msg.TxMsg != nil {
-					result := RealtimeResult{}
 					_, tx, receipt, innerTxs, err := msg.TxMsg.GetAllTxData()
 					if err != nil {
 						log.Warn("[realtime subscription] error getting tx data", "err", err)
 					}
 					result.TxHash = tx.Hash().Hex()
+					sendFlag = true
 
 					// Add tx data according to stream criteria
 					if criteria.TransactionExtraInfo {
@@ -82,7 +73,9 @@ func (api *RealtimeAPIImpl) Realtime(ctx context.Context, criteria realtimeSub.S
 					if criteria.TransactionInnerTxs {
 						result.InnerTxs = innerTxs
 					}
+				}
 
+				if sendFlag {
 					err = notifier.Notify(rpcSub.ID, result)
 					if err != nil {
 						log.Warn("[realtime subscription] error while notifying subscription", "err", err)
@@ -99,12 +92,12 @@ func (api *RealtimeAPIImpl) Realtime(ctx context.Context, criteria realtimeSub.S
 
 // Logs send a notification each time a new log appears in real-time.
 func (api *RealtimeAPIImpl) Logs(ctx context.Context, crit filters.FilterCriteria) (*rpc.Subscription, error) {
-	if !api.enableFlag || api.cacheDB == nil {
-		return &rpc.Subscription{}, ErrRealtimeNotEnabled
+	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
+		return api.filterApi.Logs(ctx, crit)
 	}
 
 	if api.subService == nil {
-		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+		return api.filterApi.Logs(ctx, crit)
 	}
 
 	notifier, supported := rpc.NotifierFromContext(ctx)

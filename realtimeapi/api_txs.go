@@ -11,8 +11,9 @@ import (
 // GetTransactionByHash implements realtime_getTransactionByHash.
 // Returns information about a transaction given the transaction's hash.
 func (api *RealtimeAPIImpl) GetTransactionByHash(ctx context.Context, txnHash libcommon.Hash) (interface{}, error) {
-	if !api.enableFlag || api.cacheDB == nil {
-		return nil, ErrRealtimeNotEnabled
+	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
+		backend := ethapi.NewTransactionAPI(api.b, nil)
+		return backend.GetTransactionByHash(ctx, txnHash)
 	}
 
 	txn, receipt, blockNum, _, ok := api.cacheDB.Stateless.GetTxInfo(txnHash)
@@ -25,7 +26,7 @@ func (api *RealtimeAPIImpl) GetTransactionByHash(ctx context.Context, txnHash li
 		backend := ethapi.NewTransactionAPI(api.b, nil)
 		return backend.GetTransactionByHash(ctx, txnHash)
 	}
-	header, _, ok := api.cacheDB.Stateless.GetHeader(blockNum)
+	header, _, blockhash, ok := api.cacheDB.Stateless.GetHeader(blockNum)
 	if !ok {
 		backend := ethapi.NewTransactionAPI(api.b, nil)
 		return backend.GetTransactionByHash(ctx, txnHash)
@@ -45,14 +46,15 @@ func (api *RealtimeAPIImpl) GetTransactionByHash(ctx context.Context, txnHash li
 		return backend.GetTransactionByHash(ctx, txnHash)
 	}
 
-	return ethapi.NewRPCTransaction_realtime(txn, blockNum, header.Time, txnIndex, header.BaseFee, api.b.ChainConfig(), receipt), nil
+	return newRPCTransaction_realtime(txn, blockhash, blockNum, header.Time, txnIndex, header.BaseFee, api.b.ChainConfig(), receipt), nil
 }
 
 // GetRawTransactionByHash implements realtime_getRawTransactionByHash.
 // Returns the bytes of the transaction for the given hash.
 func (api *RealtimeAPIImpl) GetRawTransactionByHash(ctx context.Context, hash libcommon.Hash) (hexutil.Bytes, error) {
-	if !api.enableFlag || api.cacheDB == nil {
-		return nil, ErrRealtimeNotEnabled
+	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
+		backend := ethapi.NewTransactionAPI(api.b, nil)
+		return backend.GetRawTransactionByHash(ctx, hash)
 	}
 
 	txn, _, _, _, ok := api.cacheDB.Stateless.GetTxInfo(hash)

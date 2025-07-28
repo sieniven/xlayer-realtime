@@ -30,6 +30,7 @@ var (
 		Extra:       common.FromHex("0x1234"),
 		BaseFee:     big.NewInt(7_000_000_000),
 	}
+	testHash = libcommon.HexToHash("0x1234567890abcdef")
 )
 
 func TestKafka(t *testing.T) {
@@ -48,7 +49,7 @@ func TestKafka(t *testing.T) {
 		err = producer.SendKafkaTransaction(uint64(i), signedLegacyTx, txReceipt, txInnerTxs, txChangeset)
 		assert.NilError(t, err)
 
-		err = producer.SendKafkaBlockInfo(blockHeader, 10)
+		err = producer.SendKafkaBlockInfo(blockHeader, int64(i), testHash)
 		assert.NilError(t, err)
 
 		err = producer.SendKafkaErrorTrigger(uint64(i))
@@ -104,9 +105,11 @@ func TestKafka(t *testing.T) {
 		case err := <-errorChan:
 			t.Fatalf("Received error from consumer: %v", err)
 		case rcvHeader := <-headersChan:
-			header, _, err := rcvHeader.GetBlockInfo()
+			header, count, prevBlockHash, err := rcvHeader.GetBlockInfo()
 			assert.NilError(t, err)
 			AssertHeader(t, blockHeader, header)
+			assert.Equal(t, count, int64(i))
+			assert.Equal(t, prevBlockHash, testHash)
 		}
 	}
 

@@ -1,12 +1,31 @@
 package rtclient
 
 import (
+	"encoding/json"
 	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
+
+type rpcTransaction struct {
+	tx *types.Transaction
+	txExtraInfo
+}
+
+type txExtraInfo struct {
+	BlockNumber *string         `json:"blockNumber,omitempty"`
+	BlockHash   *common.Hash    `json:"blockHash,omitempty"`
+	From        *common.Address `json:"from,omitempty"`
+}
+
+func (tx *rpcTransaction) UnmarshalJSON(msg []byte) error {
+	if err := json.Unmarshal(msg, &tx.tx); err != nil {
+		return err
+	}
+	return json.Unmarshal(msg, &tx.txExtraInfo)
+}
 
 // senderFromServer is a types.Signer that remembers the sender address returned by the RPC
 // server. It is stored in the transaction's sender address cache to avoid an additional

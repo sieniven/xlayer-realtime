@@ -68,6 +68,7 @@ type RealtimeCache struct {
 	State         *StateCache
 	Stateless     *StatelessCache
 	CacheDumpPath string
+	ReadyFlag     atomic.Bool
 
 	// highestConfirmHeight is the highest confirmed block height closed from kafka
 	highestConfirmHeight atomic.Uint64
@@ -92,6 +93,7 @@ func NewRealtimeCache(ctx context.Context, db state.Database, cacheDumpPath stri
 		State:                  stateCache,
 		Stateless:              NewStatelessCache(DefaultStatelessBlockCacheSize, DefaultStatelessTxCacheSize),
 		CacheDumpPath:          cacheDumpPath,
+		ReadyFlag:              atomic.Bool{},
 		highestConfirmHeight:   atomic.Uint64{},
 		highestExecutionHeight: atomic.Uint64{},
 		highestPendingHeight:   atomic.Uint64{},
@@ -155,7 +157,7 @@ func (cache *RealtimeCache) TryApplyBlockMsg(blockNum uint64, blockMsg *kafkaTyp
 		return err
 	}
 
-	cache.Stateless.PutHeader(blockNum, blockMsg.Header, blockMsg.PrevBlockTxCount)
+	cache.Stateless.PutHeader(blockNum, blockMsg.Header, blockMsg.PrevBlockTxCount, blockMsg.PrevBlockHash)
 	return nil
 }
 
@@ -277,6 +279,7 @@ func (cache *RealtimeCache) tryCreateNewPendingBlockContext(blockNum uint64) err
 	cache.pendingBlocks.Add(newPendingBlockContext)
 	cache.pendingBlocks.Sort()
 	cache.PutHighestPendingHeight(blockNum)
+	log.Debug(fmt.Sprintf("[Realtime] Opened block %d, pending blocks queue size: %d", blockNum, cache.pendingBlocks.Size()))
 
 	return nil
 }
