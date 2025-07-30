@@ -206,8 +206,11 @@ func TestRealtimeBenchmarNewHeadsSubscription(t *testing.T) {
 			_, ok := heights[height]
 			if ok {
 				timeDiff := time.Since(heights[height])
-				totalSubTimeDiff += timeDiff
 				count++
+				if count == 1 {
+					continue
+				}
+				totalSubTimeDiff += timeDiff
 				fmt.Printf("RT newHeads sub is faster than ETH newHeads sub by: %s\n", timeDiff)
 			}
 		case err := <-realtimeSub.Err():
@@ -215,7 +218,7 @@ func TestRealtimeBenchmarNewHeadsSubscription(t *testing.T) {
 		}
 	}
 
-	avgTimeDiff := time.Duration(int64(totalSubTimeDiff) / int64(Iterations))
+	avgTimeDiff := time.Duration(int64(totalSubTimeDiff) / int64(Iterations-1))
 	fmt.Printf("Avg RT newHeads sub is faster than ETH newHeads sub by: %s\n", avgTimeDiff)
 }
 
@@ -270,13 +273,16 @@ func TestRealtimeBenchmarNewTransactionSubscription(t *testing.T) {
 		err = g.Wait()
 		require.NoError(t, err)
 
+		if i == 0 {
+			continue
+		}
 		totalRealtimeDuration += subDuration
 
 		fmt.Printf("Iteration %v:\n", i)
 		fmt.Printf("RT newTx sub duration: %s\n", subDuration)
 	}
 
-	avgDuration := time.Duration(int64(totalRealtimeDuration) / int64(Iterations))
+	avgDuration := time.Duration(int64(totalRealtimeDuration) / int64(Iterations-1))
 
 	// Log out metrics
 	fmt.Printf("Avg RT newTx sub duration: %s\n", avgDuration)
