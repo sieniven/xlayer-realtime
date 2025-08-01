@@ -158,6 +158,12 @@ var (
 )
 
 func AssertHeader(t *testing.T, header *types.Header, rcvHeader *types.Header) {
+	if header == nil {
+		if rcvHeader != nil {
+			t.Fatalf("header is nil, but rcvHeader is not nil")
+		}
+		return
+	}
 	assert.Equal(t, header.ParentHash, rcvHeader.ParentHash)
 	assert.Equal(t, header.UncleHash, rcvHeader.UncleHash)
 	assert.Equal(t, header.Coinbase, rcvHeader.Coinbase)

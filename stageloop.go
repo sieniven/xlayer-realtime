@@ -28,8 +28,8 @@ var (
 func ListenKafkaProducer(
 	ctx context.Context,
 	kafkaProducer *kafka.KafkaProducer,
-	blockInfoChan chan *realtimeTypes.BlockInfo,
-	txInfoChan chan *state.TxInfo,
+	blockInfoChan chan kafkaTypes.BlockMessage,
+	txInfoChan chan state.TxInfo,
 	isSequencer bool) {
 	if !isSequencer {
 		log.Info("[Realtime] KafkaProducer is disabled on non-sequencer, skipping")
@@ -45,8 +45,8 @@ func ListenKafkaProducer(
 			return
 		case blockInfo := <-blockInfoChan:
 			currHeight = blockInfo.Header.Number.Uint64()
-			err = kafkaProducer.SendKafkaBlockInfo(blockInfo.Header, blockInfo.TxCount, blockInfo.Hash)
-			log.Debug(fmt.Sprintf("[Realtime] Sent block info message for block number %d with txCount %d", blockInfo.Header.Number, blockInfo.TxCount))
+			err = kafkaProducer.SendKafkaBlockInfo(blockInfo)
+			log.Debug(fmt.Sprintf("[Realtime] Sent block info message for block number %d with prev info %d", blockInfo.Header.Number, blockInfo.PrevBlockInfo))
 		case txInfo := <-txInfoChan:
 			currHeight = txInfo.BlockNumber
 			if currHeight <= 1 {
@@ -113,7 +113,7 @@ func ListenKafkaConsumer(
 			realtimeCache.UpdateExecution(finishEntry)
 			log.Debug("[Realtime] Received finish signal from execution", "finishHeight", finishEntry.Height)
 		case blockMsg := <-blockMsgsChan:
-			header, _, _, err := blockMsg.GetBlockInfo()
+			header, _, err := blockMsg.GetBlockInfo()
 			if err != nil {
 				log.Error(fmt.Sprintf("[Realtime] Failed to consume block message from kafka. error: %v", err))
 				continue

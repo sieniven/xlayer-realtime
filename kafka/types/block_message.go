@@ -4,48 +4,35 @@ import (
 	"encoding/json"
 	"fmt"
 
-	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 )
 
 type BlockMessage struct {
-	Header           *types.Header
-	PrevBlockTxCount int64
-	PrevBlockHash    libcommon.Hash
+	Header        *types.Header
+	PrevBlockInfo *realtimeTypes.BlockInfo
 }
 
-func ToKafkaBlockMessage(header *types.Header, prevBlockTxCount int64, prevBlockHash libcommon.Hash) (blockMsg BlockMessage, err error) {
-	blockMsg = BlockMessage{
-		Header:           header,
-		PrevBlockTxCount: prevBlockTxCount,
-		PrevBlockHash:    prevBlockHash,
-	}
-
-	return blockMsg, nil
-}
-
-func (msg BlockMessage) GetBlockInfo() (*types.Header, int64, libcommon.Hash, error) {
+func (msg BlockMessage) GetBlockInfo() (*types.Header, *realtimeTypes.BlockInfo, error) {
 	if msg.Header == nil {
-		return nil, 0, libcommon.Hash{}, fmt.Errorf("header is nil")
+		return nil, nil, fmt.Errorf("header is nil")
 	}
 	if msg.Header.Number.Uint64() == 0 {
-		return nil, 0, libcommon.Hash{}, fmt.Errorf("block number is 0")
+		return nil, nil, fmt.Errorf("block number is 0")
 	}
 
-	return msg.Header, msg.PrevBlockTxCount, msg.PrevBlockHash, nil
+	return msg.Header, msg.PrevBlockInfo, nil
 }
 
 func (msg BlockMessage) MarshalJSON() ([]byte, error) {
 	type BlockMessage struct {
-		Header           *types.Header  `json:"header"`
-		PrevBlockTxCount int64          `json:"prevBlockTxCount"`
-		PrevBlockHash    libcommon.Hash `json:"prevBlockHash"`
+		Header        *types.Header            `json:"header"`
+		PrevBlockInfo *realtimeTypes.BlockInfo `json:"prevBlockInfo"`
 	}
 
 	var enc BlockMessage
 	enc.Header = msg.Header
-	enc.PrevBlockTxCount = msg.PrevBlockTxCount
-	enc.PrevBlockHash = msg.PrevBlockHash
+	enc.PrevBlockInfo = msg.PrevBlockInfo
 
 	return json.Marshal(&enc)
 }

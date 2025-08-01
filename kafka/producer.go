@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
-	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
 	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
@@ -67,12 +66,7 @@ func (client *KafkaProducer) Close() error {
 	return client.producer.Close()
 }
 
-func (client *KafkaProducer) SendKafkaBlockInfo(header *types.Header, prevBlockTxCount int64, prevBlockHash libcommon.Hash) error {
-	msg, err := kafkaTypes.ToKafkaBlockMessage(header, prevBlockTxCount, prevBlockHash)
-	if err != nil {
-		return fmt.Errorf("SendKafkaBlockInfo error: %v", err)
-	}
-
+func (client *KafkaProducer) SendKafkaBlockInfo(msg kafkaTypes.BlockMessage) error {
 	// Marshal message to JSON
 	jsonData, err := msg.MarshalJSON()
 	if err != nil {
@@ -83,7 +77,7 @@ func (client *KafkaProducer) SendKafkaBlockInfo(header *types.Header, prevBlockT
 	kafkaMsg := &sarama.ProducerMessage{
 		Topic: client.config.BlockTopic,
 		Value: sarama.StringEncoder(jsonData),
-		Key:   sarama.StringEncoder(header.Hash().String()),
+		Key:   sarama.StringEncoder(msg.Header.Hash().String()),
 	}
 
 	// Send message
