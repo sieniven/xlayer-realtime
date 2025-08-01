@@ -37,8 +37,8 @@ func (cache *StatelessCache) GetBlockTxs(blockNum uint64) ([]libcommon.Hash, boo
 }
 
 // -------------- Write operations --------------
-func (cache *StatelessCache) PutHeader(blockNum uint64, header *types.Header, prevTxCount int64, prevBlockHash libcommon.Hash) {
-	cache.blockInfoMap.PutHeader(blockNum, header, prevTxCount, prevBlockHash)
+func (cache *StatelessCache) PutHeader(blockNum uint64, header *types.Header, prevBlockInfo *realtimeTypes.BlockInfo) {
+	cache.blockInfoMap.PutHeader(blockNum, header, prevBlockInfo)
 }
 
 func (cache *StatelessCache) PutTxInfo(blockNum uint64, txHash libcommon.Hash, tx *types.Transaction, receipt *types.Receipt, innerTxs []*types.InnerTx) {

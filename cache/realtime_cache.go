@@ -157,7 +157,7 @@ func (cache *RealtimeCache) TryApplyBlockMsg(blockNum uint64, blockMsg *kafkaTyp
 		return err
 	}
 
-	cache.Stateless.PutHeader(blockNum, blockMsg.Header, blockMsg.PrevBlockTxCount, blockMsg.PrevBlockHash)
+	cache.Stateless.PutHeader(blockNum, blockMsg.Header, blockMsg.PrevBlockInfo)
 	return nil
 }
 
@@ -178,7 +178,7 @@ func (cache *RealtimeCache) TryCloseBlockFromBlockMsg(prevblockNum uint64, block
 			return fmt.Errorf("prev block %d is not in pending blocks", prevblockNum)
 		}
 	}
-	prevContext.txCount = blockMsg.PrevBlockTxCount
+	prevContext.txCount = blockMsg.PrevBlockInfo.TxCount
 
 	// Try close pending block
 	cache.tryCloseBlock(prevContext)

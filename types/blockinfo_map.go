@@ -9,9 +9,9 @@ import (
 )
 
 type BlockInfo struct {
-	Header  *types.Header
-	TxCount int64
-	Hash    libcommon.Hash
+	Header  *types.Header  `json:"header"`
+	TxCount int64          `json:"txCount"`
+	Hash    libcommon.Hash `json:"hash"`
 }
 
 type BlockInfoMap struct {
@@ -35,7 +35,7 @@ func (bm *BlockInfoMap) Get(blockNum uint64) (*types.Header, int64, libcommon.Ha
 	return nil, 0, libcommon.Hash{}, exists
 }
 
-func (bm *BlockInfoMap) PutHeader(blockNum uint64, header *types.Header, prevTxCount int64, prevBlockHash libcommon.Hash) {
+func (bm *BlockInfoMap) PutHeader(blockNum uint64, header *types.Header, prevBlockInfo *BlockInfo) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
 	bm.blockInfos[blockNum] = &BlockInfo{
@@ -46,10 +46,10 @@ func (bm *BlockInfoMap) PutHeader(blockNum uint64, header *types.Header, prevTxC
 
 	// Update previous block header tx count
 	prevBlockNum := blockNum - 1
-	blockInfo, exists := bm.blockInfos[prevBlockNum]
+	_, exists := bm.blockInfos[prevBlockNum]
 	if exists {
-		blockInfo.TxCount = prevTxCount
-		blockInfo.Hash = prevBlockHash
+		// Update previous block info
+		bm.blockInfos[prevBlockNum] = prevBlockInfo
 	}
 }
 

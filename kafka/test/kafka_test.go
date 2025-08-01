@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sieniven/xlayer-realtime/kafka"
 	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
+	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 	"gotest.tools/v3/assert"
 )
 
@@ -45,18 +46,33 @@ func TestKafka(t *testing.T) {
 	producer, err := kafka.NewKafkaProducer(cfg)
 	assert.NilError(t, err)
 
-	for i := 0; i < 10; i++ {
+	currBlockHeader := types.CopyHeader(blockHeader)
+	for i := 1; i <= 10; i++ {
 		err = producer.SendKafkaTransaction(uint64(i), signedLegacyTx, txReceipt, txInnerTxs, txChangeset)
 		assert.NilError(t, err)
 
-		err = producer.SendKafkaBlockInfo(blockHeader, int64(i), testHash)
+		var prevBlockHeader *types.Header
+		if i != 1 {
+			prevBlockHeader = types.CopyHeader(currBlockHeader)
+		}
+		currBlockHeader.Number = big.NewInt(int64(i))
+		blockMsg := kafkaTypes.BlockMessage{
+			Header: currBlockHeader,
+			PrevBlockInfo: &realtimeTypes.BlockInfo{
+				Header:  prevBlockHeader,
+				TxCount: int64(i),
+				Hash:    testHash,
+			},
+		}
+		assert.NilError(t, err)
+		err = producer.SendKafkaBlockInfo(blockMsg)
 		assert.NilError(t, err)
 
 		err = producer.SendKafkaErrorTrigger(uint64(i))
 		assert.NilError(t, err)
 	}
 
-	for i := 10; i < 20; i++ {
+	for i := 11; i <= 20; i++ {
 		err = producer.SendKafkaTransaction(uint64(i), signedAccessListTx, txReceipt, txInnerTxs, txChangeset)
 		assert.NilError(t, err)
 	}
@@ -74,7 +90,7 @@ func TestKafka(t *testing.T) {
 	go consumer.ConsumeKafka(ctx, headersChan, txMsgsChan, errorMsgsChan, errorChan)
 
 	// Verify tx messages
-	for i := 0; i < 10; i++ {
+	for i := 1; i <= 10; i++ {
 		select {
 		case err := <-errorChan:
 			t.Fatalf("Received error from consumer: %v", err)
@@ -86,7 +102,7 @@ func TestKafka(t *testing.T) {
 		}
 	}
 
-	for i := 10; i < 20; i++ {
+	for i := 11; i <= 20; i++ {
 		select {
 		case err := <-errorChan:
 			t.Fatalf("Received error from consumer: %v", err)
@@ -100,21 +116,28 @@ func TestKafka(t *testing.T) {
 	}
 
 	// Verify header messages
-	for i := 0; i < 10; i++ {
+	currBlockHeader = types.CopyHeader(blockHeader)
+	for i := 1; i <= 10; i++ {
 		select {
 		case err := <-errorChan:
 			t.Fatalf("Received error from consumer: %v", err)
 		case rcvHeader := <-headersChan:
-			header, count, prevBlockHash, err := rcvHeader.GetBlockInfo()
+			var prevBlockHeader *types.Header
+			if i != 1 {
+				prevBlockHeader = types.CopyHeader(currBlockHeader)
+			}
+			currBlockHeader.Number = big.NewInt(int64(i))
+			header, prevBlockInfo, err := rcvHeader.GetBlockInfo()
 			assert.NilError(t, err)
-			AssertHeader(t, blockHeader, header)
-			assert.Equal(t, count, int64(i))
-			assert.Equal(t, prevBlockHash, testHash)
+			AssertHeader(t, currBlockHeader, header)
+			AssertHeader(t, prevBlockHeader, prevBlockInfo.Header)
+			assert.Equal(t, prevBlockInfo.TxCount, int64(i))
+			assert.Equal(t, prevBlockInfo.Hash, testHash)
 		}
 	}
 
 	// Verify error trigger messages
-	for i := 0; i < 10; i++ {
+	for i := 1; i <= 10; i++ {
 		select {
 		case err := <-errorChan:
 			t.Fatalf("Received error from consumer: %v", err)
