@@ -51,6 +51,11 @@ type TransactionMessage struct {
 
 func ToKafkaTransactionMessage(tx *types.Transaction, receipt *types.Receipt, innerTxs []*types.InnerTx, changeset *realtimeTypes.Changeset, blockNumber uint64) (txMsg TransactionMessage, err error) {
 	// Parse tx
+	if tx == nil || receipt == nil || innerTxs == nil || changeset == nil {
+		return TransactionMessage{}, fmt.Errorf("nil tx data received")
+	}
+
+	// Parse tx
 	switch tx.Type() {
 	case types.LegacyTxType:
 		txMsg, err = fromLegacyTxMessage(tx, blockNumber)

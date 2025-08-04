@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/sieniven/xlayer-realtime/cache"
 	"github.com/sieniven/xlayer-realtime/kafka"
@@ -28,7 +29,7 @@ var (
 func ListenKafkaProducer(
 	ctx context.Context,
 	kafkaProducer *kafka.KafkaProducer,
-	blockInfoChan chan kafkaTypes.BlockMessage,
+	blockInfoChan chan *types.Header,
 	txInfoChan chan state.TxInfo,
 	isSequencer bool) {
 	if !isSequencer {
@@ -37,33 +38,36 @@ func ListenKafkaProducer(
 	}
 
 	for {
-		var err error
 		currHeight := uint64(0)
 
 		select {
 		case <-ctx.Done():
 			return
-		case blockInfo := <-blockInfoChan:
-			currHeight = blockInfo.Header.Number.Uint64()
-			err = kafkaProducer.SendKafkaBlockInfo(blockInfo)
-			log.Debug(fmt.Sprintf("[Realtime] Sent block info message for block number %d with prev info %d", blockInfo.Header.Number, blockInfo.PrevBlockInfo))
+		case header := <-blockInfoChan:
+			currHeight = header.Number.Uint64()
+			err := kafkaProducer.SendKafkaBlockHeader(header)
+			if err != nil {
+				log.Error(fmt.Sprintf("[Realtime] Failed to send kafka block info message. error: %v, currHeight: %d", err, currHeight))
+				err = kafkaProducer.SendKafkaErrorTrigger(currHeight)
+				if err != nil {
+					log.Error(fmt.Sprintf("[Realtime] Failed to send error trigger message. error: %v, currHeight: %d", err, currHeight))
+				}
+			} else {
+				log.Debug(fmt.Sprintf("[Realtime] Sent kafka block info message for block number %d", header.Number))
+			}
 		case txInfo := <-txInfoChan:
 			currHeight = txInfo.BlockNumber
-			if currHeight <= 1 {
-				continue
-			}
 			changeset := state.CollectChangeset(txInfo.Entries)
-			err = kafkaProducer.SendKafkaTransaction(txInfo.BlockNumber, txInfo.Tx, txInfo.Receipt, txInfo.InnerTxs, changeset)
-			log.Debug(fmt.Sprintf("[Realtime] Sent tx message for block number %d with txHash %x", txInfo.BlockNumber, txInfo.Tx.Hash()))
-		}
-
-		if err != nil {
-			log.Error(fmt.Sprintf("[Realtime] Failed to send kafka message, trigger error message. error: %v, currHeight: %d", err, currHeight))
-			err = kafkaProducer.SendKafkaErrorTrigger(currHeight)
+			err := kafkaProducer.SendKafkaTransaction(txInfo.BlockNumber, txInfo.Tx, txInfo.Receipt, txInfo.InnerTxs, changeset)
 			if err != nil {
-				log.Error(fmt.Sprintf("[Realtime] Failed to send error trigger message. error: %v, currHeight: %d", err, currHeight))
+				log.Error(fmt.Sprintf("[Realtime] Failed to send kafka tx message. error: %v, currHeight: %d", err, currHeight))
+				err = kafkaProducer.SendKafkaErrorTrigger(currHeight)
+				if err != nil {
+					log.Error(fmt.Sprintf("[Realtime] Failed to send error trigger message. error: %v, currHeight: %d", err, currHeight))
+				}
+			} else {
+				log.Debug(fmt.Sprintf("[Realtime] Sent kafka tx message for block number %d with txHash %x", txInfo.BlockNumber, txInfo.Tx.Hash()))
 			}
-			continue
 		}
 	}
 }
@@ -113,14 +117,8 @@ func ListenKafkaConsumer(
 			realtimeCache.UpdateExecution(finishEntry)
 			log.Debug("[Realtime] Received finish signal from execution", "finishHeight", finishEntry.Height)
 		case blockMsg := <-blockMsgsChan:
-			header, _, err := blockMsg.GetBlockInfo()
-			if err != nil {
+			if err := blockMsg.Validate(realtimeCache.GetExecutionHeight()); err != nil {
 				log.Error(fmt.Sprintf("[Realtime] Failed to consume block message from kafka. error: %v", err))
-				continue
-			}
-			if header.Number.Uint64() <= realtimeCache.GetExecutionHeight() {
-				// Ignore block msgs from previous blocks
-				log.Debug(fmt.Sprintf("[Realtime] Ignoring block message from previous block. blockNum: %d", header.Number))
 				continue
 			}
 			kafkaCache.BlockMsgCache.Add(&blockMsg)
@@ -128,7 +126,7 @@ func ListenKafkaConsumer(
 				// Publish block to subscriptions
 				subService.BroadcastNewMsg(&blockMsg, nil)
 			}
-			log.Debug(fmt.Sprintf("[Realtime] Received block message. blockNum: %d", header.Number))
+			log.Debug(fmt.Sprintf("[Realtime] Received block message. blockNum: %d", blockMsg.Header.Number))
 		case txMsg := <-txMsgsChan:
 			if err := txMsg.Validate(); err != nil {
 				log.Error(fmt.Sprintf("[Realtime] Failed to consume transaction message from kafka. error: %v", err))
