@@ -1,6 +1,6 @@
 package realtime
 
-import "github.com/sieniven/xlayer-realtime/kafka"
+import "github.com/ethereum/go-ethereum/realtime/kafka"
 
 type RealtimeConfig struct {
 	Enable               bool              `toml:",omitempty"`

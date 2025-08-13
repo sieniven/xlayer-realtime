@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 )
 
 type BlockMessage struct {

@@ -15,13 +15,15 @@ type BlockInfo struct {
 }
 
 type BlockInfoMap struct {
-	blockInfos map[uint64]*BlockInfo
-	mu         sync.RWMutex
+	blockInfos        map[uint64]*BlockInfo
+	blockHashToHeight map[libcommon.Hash]uint64
+	mu                sync.RWMutex
 }
 
 func NewBlockInfoMap(size int) *BlockInfoMap {
 	return &BlockInfoMap{
-		blockInfos: make(map[uint64]*BlockInfo, size),
+		blockInfos:        make(map[uint64]*BlockInfo, size),
+		blockHashToHeight: make(map[libcommon.Hash]uint64, size),
 	}
 }
 
@@ -35,6 +37,14 @@ func (bm *BlockInfoMap) Get(blockNum uint64) (*types.Header, int64, libcommon.Ha
 	return nil, 0, libcommon.Hash{}, exists
 }
 
+func (bm *BlockInfoMap) GetBlockNumberByHash(blockHash libcommon.Hash) (uint64, bool) {
+	bm.mu.RLock()
+	defer bm.mu.RUnlock()
+
+	blockNum, exists := bm.blockHashToHeight[blockHash]
+	return blockNum, exists
+}
+
 func (bm *BlockInfoMap) PutHeader(blockNum uint64, header *types.Header, prevBlockInfo *BlockInfo) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
@@ -44,19 +54,22 @@ func (bm *BlockInfoMap) PutHeader(blockNum uint64, header *types.Header, prevBlo
 		Hash:    libcommon.Hash{},
 	}
 
-	// Update previous block header tx count
+	// Update previous block info
 	prevBlockNum := blockNum - 1
-	_, exists := bm.blockInfos[prevBlockNum]
-	if exists {
-		// Update previous block info
+	if prevBlockInfo != nil {
 		bm.blockInfos[prevBlockNum] = prevBlockInfo
+		bm.blockHashToHeight[prevBlockInfo.Hash] = prevBlockNum
 	}
 }
 
 func (bm *BlockInfoMap) Delete(blockNum uint64) {
+	_, _, blockhash, exists := bm.Get(blockNum)
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
-	delete(bm.blockInfos, blockNum)
+	if exists {
+		delete(bm.blockHashToHeight, blockhash)
+		delete(bm.blockInfos, blockNum)
+	}
 }
 
 func (bm *BlockInfoMap) Clear() {
@@ -64,6 +77,9 @@ func (bm *BlockInfoMap) Clear() {
 	defer bm.mu.Unlock()
 	for k := range bm.blockInfos {
 		delete(bm.blockInfos, k)
+	}
+	for k := range bm.blockHashToHeight {
+		delete(bm.blockHashToHeight, k)
 	}
 }
 

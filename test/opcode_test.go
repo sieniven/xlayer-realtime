@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/sieniven/xlayer-realtime/rtclient"
+	"github.com/ethereum/go-ethereum/realtime/rtclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,9 +17,9 @@ func TestIterativeCreate2AndDestroy(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ec, err := ethclient.Dial(DefaultL2NetworkURL)
+	ec, err := ethclient.Dial(DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
-	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkURL)
+	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
 
 	privateKey, err := crypto.HexToECDSA(DefaultL2AdminPrivateKey[2:])
@@ -52,9 +52,9 @@ func TestMultipleCreate2AndDestroy(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ec, err := ethclient.Dial(DefaultL2NetworkURL)
+	ec, err := ethclient.Dial(DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
-	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkURL)
+	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
 
 	privateKey, err := crypto.HexToECDSA(DefaultL2AdminPrivateKey[2:])
@@ -88,9 +88,9 @@ func TestCreate2AndDestroyInSameTx(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ec, err := ethclient.Dial(DefaultL2NetworkURL)
+	ec, err := ethclient.Dial(DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
-	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkURL)
+	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
 
 	privateKey, err := crypto.HexToECDSA(DefaultL2AdminPrivateKey[2:])

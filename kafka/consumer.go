@@ -7,7 +7,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/ethereum/go-ethereum/log"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
 )
 
 type KafkaConsumer struct {

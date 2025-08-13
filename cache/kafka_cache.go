@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 	lru "github.com/hashicorp/golang-lru/v2"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 )
 
 // -------------- Kafka Cache --------------

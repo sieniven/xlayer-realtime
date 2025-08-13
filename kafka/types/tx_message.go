@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 )
 
 // TransactionMessage represents the structure of the transaction message to be sent to Kafka

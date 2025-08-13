@@ -6,10 +6,12 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/ethereum/go-ethereum/core/state"
+	libcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 )
 
 const (
@@ -23,7 +25,8 @@ const (
 	DefaultStatelessTxCacheSize    = 1000
 
 	// State cache size
-	DefaultStateCacheSize = 1_000_000
+	DefaultGlobalStateCacheSize  = 1_000_000
+	DefaultPendingStateCacheSize = 1_000
 
 	// Sync threshold config
 	PendingBlocksCacheSizeThreshold = 20
@@ -38,6 +41,8 @@ type PendingBlockContext struct {
 	txCount int64
 	// pendingTxs is the queue of pending txs to be processed in the current pending block
 	pendingTxs *realtimeTypes.OrderedList[*kafkaTypes.TransactionMessage]
+	// pendingStateCache is the pending state cache for the current pending block
+	pendingStateCache *PendingStateCache
 }
 
 // String returns a formatted string representation of the PendingBlockContext
@@ -64,8 +69,11 @@ func ComparePendingBlockContext(a, b *PendingBlockContext) int {
 }
 
 type RealtimeCache struct {
+	// Blockchain backend
+	blockchain *core.BlockChain
+
 	// Caches
-	State         *StateCache
+	State         *GlobalStateCache
 	Stateless     *StatelessCache
 	CacheDumpPath string
 	ReadyFlag     atomic.Bool
@@ -83,13 +91,14 @@ type RealtimeCache struct {
 	pendingBlocks *realtimeTypes.OrderedList[*PendingBlockContext]
 }
 
-func NewRealtimeCache(ctx context.Context, db state.Database, cacheDumpPath string) (*RealtimeCache, error) {
-	stateCache, err := NewStateCache(ctx, db, DefaultStateCacheSize)
+func NewRealtimeCache(ctx context.Context, blockchain *core.BlockChain, cacheDumpPath string) (*RealtimeCache, error) {
+	stateCache, err := NewGlobalStateCache(ctx, blockchain.StateCache(), DefaultGlobalStateCacheSize)
 	if err != nil {
 		return nil, err
 	}
 
 	return &RealtimeCache{
+		blockchain:             blockchain,
 		State:                  stateCache,
 		Stateless:              NewStatelessCache(DefaultStatelessBlockCacheSize, DefaultStatelessTxCacheSize),
 		CacheDumpPath:          cacheDumpPath,
@@ -132,6 +141,13 @@ func (cache *RealtimeCache) UpdateExecution(finishEntry realtimeTypes.FinishedEn
 	cache.State.UpdateLatestRoot(finishEntry.Root)
 }
 
+func (cache *RealtimeCache) GetCurrentPendingHeight() uint64 {
+	if cache.GetHighestPendingHeight() == 0 {
+		return 0
+	}
+	return cache.GetHighestConfirmHeight() + 1
+}
+
 func (cache *RealtimeCache) GetHighestPendingHeight() uint64 {
 	return cache.highestPendingHeight.Load()
 }
@@ -140,6 +156,19 @@ func (cache *RealtimeCache) PutHighestPendingHeight(blockNum uint64) {
 	if blockNum > cache.highestPendingHeight.Load() {
 		cache.highestPendingHeight.Store(blockNum)
 	}
+}
+
+func (cache *RealtimeCache) GetPendingStateCache(blockNum uint64) *PendingStateCache {
+	if cache.pendingBlocks.Size() == 0 {
+		return nil
+	}
+
+	for _, context := range cache.pendingBlocks.Items() {
+		if context.blockNum == blockNum {
+			return context.pendingStateCache
+		}
+	}
+	return nil
 }
 
 func (cache *RealtimeCache) TryInitStateCache(executionHeight uint64) error {
@@ -236,7 +265,7 @@ func (cache *RealtimeCache) tryApplyBlockTxMsgs(blockContext *PendingBlockContex
 			return fmt.Errorf("failed to get inner txs. Block number: %d, tx index: %d, error: %v", txMsg.BlockNumber, blockContext.nextTxIndex, err)
 		}
 		cache.Stateless.PutTxInfo(blockContext.blockNum, txMsg.Hash, tx, receipt, innerTxs)
-		cache.State.ApplyChangeset(txMsg.Changeset, txMsg.BlockNumber, txMsg.Receipt.TransactionIndex)
+		blockContext.pendingStateCache.ApplyChangeset(txMsg.Changeset, txMsg.BlockNumber, txMsg.Receipt.TransactionIndex)
 		blockContext.nextTxIndex++
 		processed++
 	}
@@ -271,10 +300,11 @@ func (cache *RealtimeCache) tryCreateNewPendingBlockContext(blockNum uint64) err
 
 	// Create new pending block context
 	newPendingBlockContext := &PendingBlockContext{
-		blockNum:    blockNum,
-		nextTxIndex: 0,
-		pendingTxs:  realtimeTypes.NewOrderedList(DefaultTxMsgSliceSize, CompareTransactionMessages),
-		txCount:     -1,
+		blockNum:          blockNum,
+		nextTxIndex:       0,
+		pendingTxs:        realtimeTypes.NewOrderedList(DefaultTxMsgSliceSize, CompareTransactionMessages),
+		txCount:           -1,
+		pendingStateCache: NewPendingStateCache(cache.State, DefaultPendingStateCacheSize),
 	}
 	cache.pendingBlocks.Add(newPendingBlockContext)
 	cache.pendingBlocks.Sort()
@@ -313,7 +343,17 @@ func (cache *RealtimeCache) tryCloseBlock(pendingBlockContext *PendingBlockConte
 		}
 	}
 	cache.PutHighestConfirmHeight(pendingBlockContext.blockNum)
+	cache.State.FlushState(pendingBlockContext.pendingStateCache.cache)
 	log.Debug(fmt.Sprintf("[Realtime] Closed block %d, pending blocks queue size: %d", pendingBlockContext.blockNum, cache.pendingBlocks.Size()))
+}
+
+// -------------- ReceiptGetter implementation --------------
+func (cache *RealtimeCache) GetReceipts(ctx context.Context, hash libcommon.Hash) (types.Receipts, error) {
+	receipts, err := cache.Stateless.GetReceipts(ctx, hash)
+	if err != nil {
+		return cache.blockchain.GetReceiptsByHash(hash), nil
+	}
+	return receipts, nil
 }
 
 // -------------- Debug operations --------------

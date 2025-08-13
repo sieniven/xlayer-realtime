@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 )
 
-// GetTransactionReceipt implements realtime_getTransactionReceipt.
+// GetTransactionReceipt implements the realtime eth_getTransactionReceipt.
 // Returns the receipt of a transaction given the transaction's hash.
 func (api *RealtimeAPIImpl) GetTransactionReceipt(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
 	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
@@ -37,7 +37,7 @@ func (api *RealtimeAPIImpl) GetTransactionReceipt(ctx context.Context, hash comm
 	return ethapi.MarshalReceipt(receipt, header.Number.Uint64(), signer, txn, api.b.ChainConfig()), nil
 }
 
-// GetInternalTransactions implements realtime_getInternalTransactions.
+// GetInternalTransactions implements the realtime eth_getInternalTransactions.
 // Returns the internal transactions of a transaction given the transaction's hash.
 func (api *RealtimeAPIImpl) GetInternalTransactions(ctx context.Context, hash common.Hash) ([]*types.InnerTx, error) {
 	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {

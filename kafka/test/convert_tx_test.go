@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
 	"gotest.tools/assert"
 )
 

@@ -6,8 +6,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/log"
+	realtimeSub "github.com/ethereum/go-ethereum/realtime/subscription"
 	"github.com/ethereum/go-ethereum/rpc"
-	realtimeSub "github.com/sieniven/xlayer-realtime/subscription"
 )
 
 // Realtime send a notification each time when a transaction was received in real-time.

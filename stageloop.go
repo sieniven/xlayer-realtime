@@ -9,11 +9,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/sieniven/xlayer-realtime/cache"
-	"github.com/sieniven/xlayer-realtime/kafka"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
-	realtimeSub "github.com/sieniven/xlayer-realtime/subscription"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
+	"github.com/ethereum/go-ethereum/realtime/cache"
+	"github.com/ethereum/go-ethereum/realtime/kafka"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
+	realtimeSub "github.com/ethereum/go-ethereum/realtime/subscription"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 )
 
 var (
@@ -45,7 +45,7 @@ func ListenKafkaProducer(
 			return
 		case header := <-blockInfoChan:
 			currHeight = header.Number.Uint64()
-			err := kafkaProducer.SendKafkaBlockHeader(header)
+			err := kafkaProducer.SendKafkaBlockInfo(header)
 			if err != nil {
 				log.Error(fmt.Sprintf("[Realtime] Failed to send kafka block info message. error: %v, currHeight: %d", err, currHeight))
 				err = kafkaProducer.SendKafkaErrorTrigger(currHeight)
@@ -115,7 +115,7 @@ func ListenKafkaConsumer(
 				log.Debug(fmt.Sprintf("[Realtime] Chain rollback detected, resetting realtime cache. finishHeight: %d", finishEntry.Height))
 			}
 			realtimeCache.UpdateExecution(finishEntry)
-			log.Debug("[Realtime] Received finish signal from execution", "finishHeight", finishEntry.Height)
+			log.Debug(fmt.Sprintf("[Realtime] Received finish signal from execution. finishHeight: %d", finishEntry.Height))
 		case blockMsg := <-blockMsgsChan:
 			if err := blockMsg.Validate(realtimeCache.GetExecutionHeight()); err != nil {
 				log.Error(fmt.Sprintf("[Realtime] Failed to consume block message from kafka. error: %v", err))

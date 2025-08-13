@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +27,7 @@ func TestBlockInfoMap(t *testing.T) {
 		Time:   50,
 	}
 
-	t.Run("PutHeader and Get", func(t *testing.T) {
+	t.Run("BlockInfoMapPutAndGet", func(t *testing.T) {
 		bm.PutHeader(blockNum, header, &realtimeTypes.BlockInfo{
 			Header:  prevHeader,
 			TxCount: prevTxCount,
@@ -43,23 +43,26 @@ func TestBlockInfoMap(t *testing.T) {
 		assert.Equal(t, int64(-1), cacheTxCount)
 
 		// Check previous header should not exist
-		_, _, _, exists = bm.Get(blockNum - 1)
-		assert.False(t, exists)
+		cacheHeader, cacheTxCount, cacheHash, exists = bm.Get(blockNum - 1)
+		assert.True(t, exists)
+		assert.Equal(t, prevHeader, cacheHeader)
+		assert.Equal(t, prevTxCount, cacheTxCount)
+		assert.Equal(t, hash, cacheHash)
 	})
 
-	t.Run("Get non-existent", func(t *testing.T) {
+	t.Run("BlockInfoMapGetNonExistent", func(t *testing.T) {
 		nonExistentNum := uint64(888)
 		_, _, _, exists := bm.Get(nonExistentNum)
 		assert.False(t, exists)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("BlockInfoMapDelete", func(t *testing.T) {
 		bm.Delete(blockNum)
 		_, _, _, exists := bm.Get(blockNum)
 		assert.False(t, exists)
 	})
 
-	t.Run("Incremental operations", func(t *testing.T) {
+	t.Run("BlockInfoMapIncrementalOperations", func(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			blockNum := uint64(i)
 			prevBlockNum := blockNum - 1
@@ -91,15 +94,10 @@ func TestBlockInfoMap(t *testing.T) {
 
 			// Check previous block txCount
 			cacheHeader, cacheTxCount, cacheHash, exists = bm.Get(prevBlockNum)
-			if i == 0 {
-				assert.False(t, exists)
-			} else {
-				assert.True(t, exists)
-				assert.Equal(t, prevHeader, cacheHeader)
-				assert.Equal(t, prevTxCount, cacheTxCount)
-				assert.Equal(t, prevHash, cacheHash)
-			}
-
+			assert.True(t, exists)
+			assert.Equal(t, prevHeader, cacheHeader)
+			assert.Equal(t, prevTxCount, cacheTxCount)
+			assert.Equal(t, prevHash, cacheHash)
 		}
 
 		// Test delete
@@ -164,7 +162,7 @@ func TestTxInfoMap(t *testing.T) {
 		},
 	}
 
-	t.Run("Put and Get", func(t *testing.T) {
+	t.Run("TxInfoMapPutAndGet", func(t *testing.T) {
 		tm.Put(blockNumber, txHash, tx, receipt, innerTxs)
 		gotTx, gotReceipt, _, gotInnerTxs, exists := tm.GetTx(txHash)
 		assert.True(t, exists)
@@ -176,20 +174,20 @@ func TestTxInfoMap(t *testing.T) {
 		assert.Equal(t, txHashes, []common.Hash{txHash})
 	})
 
-	t.Run("Get non-existent", func(t *testing.T) {
+	t.Run("TxInfoMapGetNonExistent", func(t *testing.T) {
 		nonExistentHash := common.HexToHash("0x456")
 		_, _, _, _, exists := tm.GetTx(nonExistentHash)
 		assert.False(t, exists)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("TxInfoMapDelete", func(t *testing.T) {
 		tm.Delete(blockNumber)
 		_, _, _, _, exists := tm.GetTx(txHash)
 		assert.False(t, exists)
 	})
 
 	blockNumber = 10
-	t.Run("Concurrent operations", func(t *testing.T) {
+	t.Run("TxInfoMapConcurrentOperations", func(t *testing.T) {
 		const goroutines = 10
 		var wg sync.WaitGroup
 		hashes := make([]common.Hash, 0, goroutines)

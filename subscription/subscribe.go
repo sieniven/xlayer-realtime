@@ -8,7 +8,7 @@ import (
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/filters"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
 )
 
 const (

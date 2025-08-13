@@ -8,19 +8,19 @@ import (
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 )
 
 // KafkaProducer represents a Kafka producer client for sending transaction messages
 type KafkaProducer struct {
-	producer   sarama.SyncProducer
-	config     KafkaConfig
-	ctx        context.Context
-	blockChain *core.BlockChain
+	producer sarama.SyncProducer
+	config   KafkaConfig
+	ctx      context.Context
+	bc       *core.BlockChain
 }
 
-func NewKafkaProducer(config KafkaConfig, ctx context.Context, blockChain *core.BlockChain) (*KafkaProducer, error) {
+func NewKafkaProducer(config KafkaConfig, ctx context.Context, bc *core.BlockChain) (*KafkaProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = DEFAULT_VERSION
 	saramaConfig.ClientID = config.ClientID
@@ -34,10 +34,10 @@ func NewKafkaProducer(config KafkaConfig, ctx context.Context, blockChain *core.
 	}
 
 	return &KafkaProducer{
-		producer:   producer,
-		config:     config,
-		ctx:        ctx,
-		blockChain: blockChain,
+		producer: producer,
+		config:   config,
+		ctx:      ctx,
+		bc:       bc,
 	}, nil
 }
 
@@ -73,7 +73,7 @@ func (client *KafkaProducer) SendKafkaTransaction(blockNumber uint64, tx *types.
 	return nil
 }
 
-func (client *KafkaProducer) SendKafkaBlockHeader(header *types.Header) error {
+func (client *KafkaProducer) SendKafkaBlockInfo(header *types.Header) error {
 	prevBlockInfo, err := client.getPrevBlockData(header.Number.Uint64())
 	if err != nil {
 		return err
@@ -83,10 +83,10 @@ func (client *KafkaProducer) SendKafkaBlockHeader(header *types.Header) error {
 		PrevBlockInfo: prevBlockInfo,
 	}
 
-	return client.SendKafkaBlockInfo(msg)
+	return client.SendKafkaBlockMessage(msg)
 }
 
-func (client *KafkaProducer) SendKafkaBlockInfo(msg kafkaTypes.BlockMessage) error {
+func (client *KafkaProducer) SendKafkaBlockMessage(msg kafkaTypes.BlockMessage) error {
 	// Marshal message to JSON
 	jsonData, err := msg.MarshalJSON()
 	if err != nil {
@@ -147,9 +147,9 @@ func (client *KafkaProducer) getPrevBlockData(blockNumber uint64) (*realtimeType
 	}
 
 	prevBlockNumber := blockNumber - 1
-	prevBlock := client.blockChain.GetBlockByNumber(prevBlockNumber)
-	if prevBlock == nil {
-		return nil, fmt.Errorf("failed to get previous block from chain db")
+	prevBlock := client.bc.GetBlockByNumber(prevBlockNumber)
+	if prevBlock != nil {
+		return nil, fmt.Errorf("failed to get previous block from blockchain")
 	}
 
 	// Get transaction count for the previous block

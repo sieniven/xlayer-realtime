@@ -12,9 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/realtime/realtimeapi"
+	"github.com/ethereum/go-ethereum/realtime/rtclient"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/sieniven/xlayer-realtime/realtimeapi"
-	"github.com/sieniven/xlayer-realtime/rtclient"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -29,9 +29,9 @@ func TestRealtimeBenchmarkNativeTransfer(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ec, err := ethclient.Dial(DefaultL2NetworkURL)
+	ec, err := ethclient.Dial(DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
-	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkURL)
+	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
 
 	// Default test address for tests that require an address
@@ -85,8 +85,8 @@ func TestRealtimeBenchmarkNativeTransfer(t *testing.T) {
 		fmt.Printf("ETH state update for native tx transfer confirmation took: %s\n", ethBalanceDuration)
 	}
 
-	avgRealtimeBalanceDuration := time.Duration(int64(totalRealtimeBalanceDuration) / int64(Iterations))
-	avgEthBalanceDuration := time.Duration(int64(totalEthBalanceDuration) / int64(Iterations))
+	avgRealtimeBalanceDuration := time.Duration(int64(totalRealtimeBalanceDuration) / int64(Iterations-1))
+	avgEthBalanceDuration := time.Duration(int64(totalEthBalanceDuration) / int64(Iterations-1))
 
 	// Log out metrics
 	fmt.Printf("Avg RT state update for native tx transfer confirmation took: %s\n", avgRealtimeBalanceDuration)
@@ -99,9 +99,9 @@ func TestRealtimeBenchmarkERC20Transfer(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ec, err := ethclient.Dial(DefaultL2NetworkURL)
+	ec, err := ethclient.Dial(DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
-	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkURL)
+	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
 
 	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(DefaultL2AdminPrivateKey, "0x"))
@@ -165,8 +165,8 @@ func TestRealtimeBenchmarkERC20Transfer(t *testing.T) {
 		fmt.Printf("ETH state update for erc20 tx transfer confirmation took: %s\n", ethBalanceDuration)
 	}
 
-	avgRealtimeBalanceDuration := time.Duration(int64(totalRealtimeBalanceDuration) / int64(Iterations))
-	avgEthBalanceDuration := time.Duration(int64(totalEthBalanceDuration) / int64(Iterations))
+	avgRealtimeBalanceDuration := time.Duration(int64(totalRealtimeBalanceDuration) / int64(Iterations-1))
+	avgEthBalanceDuration := time.Duration(int64(totalEthBalanceDuration) / int64(Iterations-1))
 
 	// Log out metrics
 	fmt.Printf("Avg RT state update for erc20 tx transfer confirmation took: %s\n", avgRealtimeBalanceDuration)
@@ -224,9 +224,9 @@ func TestRealtimeBenchmarNewHeadsSubscription(t *testing.T) {
 
 func TestRealtimeBenchmarNewTransactionSubscription(t *testing.T) {
 	ctx := context.Background()
-	ec, err := ethclient.Dial(DefaultL2NetworkURL)
+	ec, err := ethclient.Dial(DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
-	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkURL)
+	client, err := rtclient.NewRealtimeClient(ctx, ec, DefaultL2NetworkRealtimeURL)
 	require.NoError(t, err)
 
 	wsClient, err := rpc.Dial(DefaultL2NetworkWSURL)

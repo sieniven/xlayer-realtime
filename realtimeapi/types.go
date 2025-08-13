@@ -45,3 +45,14 @@ func (t *RealtimeTag) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+func (t RealtimeTag) MarshalJSON() ([]byte, error) {
+	switch t {
+	case Latest:
+		return []byte(`"latest"`), nil
+	case Pending:
+		return []byte(`"pending"`), nil
+	default:
+		return nil, fmt.Errorf("invalid RealtimeTag value: %d", int64(t))
+	}
+}

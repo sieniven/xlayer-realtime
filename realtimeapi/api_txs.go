@@ -49,7 +49,7 @@ func (api *RealtimeAPIImpl) GetTransactionByHash(ctx context.Context, txnHash li
 	return newRPCTransaction_realtime(txn, blockhash, blockNum, header.Time, txnIndex, header.BaseFee, api.b.ChainConfig(), receipt), nil
 }
 
-// GetRawTransactionByHash implements realtime_getRawTransactionByHash.
+// GetRawTransactionByHash implements the realtime eth_getRawTransactionByHash.
 // Returns the bytes of the transaction for the given hash.
 func (api *RealtimeAPIImpl) GetRawTransactionByHash(ctx context.Context, hash libcommon.Hash) (hexutil.Bytes, error) {
 	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {

@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/sieniven/xlayer-realtime/kafka"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
+	"github.com/ethereum/go-ethereum/realtime/kafka"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 	"gotest.tools/v3/assert"
 )
 
@@ -65,7 +65,7 @@ func TestKafka(t *testing.T) {
 			},
 		}
 		assert.NilError(t, err)
-		err = producer.SendKafkaBlockInfo(blockMsg)
+		err = producer.SendKafkaBlockMessage(blockMsg)
 		assert.NilError(t, err)
 
 		err = producer.SendKafkaErrorTrigger(uint64(i))

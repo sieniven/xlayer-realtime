@@ -5,7 +5,7 @@ import "context"
 // RealtimeDumpStateCache dumps the state cache
 func (rc *RealtimeClient) RealtimeDumpCache(ctx context.Context) error {
 	var result interface{}
-	err := rc.c.CallContext(ctx, &result, "eth_debugDumpRealtimeCache")
+	err := rc.c.CallContext(ctx, &result, "debug_realtimeDumpCache")
 	if err != nil {
 		return err
 	}

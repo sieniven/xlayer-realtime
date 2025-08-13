@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 	"github.com/holiman/uint256"
-	kafkaTypes "github.com/sieniven/xlayer-realtime/kafka/types"
-	realtimeTypes "github.com/sieniven/xlayer-realtime/types"
 	"gotest.tools/assert"
 )
 
