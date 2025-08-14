@@ -10,8 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// BlockNumber implements realtime_blockNumber.
-// Returns the block number of the most recent confirmed/pending block.
 func (api *RealtimeAPIImpl) BlockNumber(ctx context.Context, tag *RealtimeTag) (hexutil.Uint64, error) {
 	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
 		backend := ethapi.NewBlockChainAPI(api.b)
@@ -32,8 +30,6 @@ func (api *RealtimeAPIImpl) BlockNumber(ctx context.Context, tag *RealtimeTag) (
 	return hexutil.Uint64(blockNumber), nil
 }
 
-// GetBlockTransactionCountByNumber implements realtime_getBlockTransactionCountByNumber.
-// Returns the number of transactions in a block given the block's block number.
 func (api *RealtimeAPIImpl) GetBlockTransactionCountByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*hexutil.Uint, error) {
 	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
 		backend := ethapi.NewTransactionAPI(api.b, nil)

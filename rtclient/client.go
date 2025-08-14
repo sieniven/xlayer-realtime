@@ -70,7 +70,7 @@ func (rc *RealtimeClient) RealtimeCall(ctx context.Context, from, to common.Addr
 	return hexutil.Encode(hex), nil
 }
 
-// RealtimeEstimateGas estimates gas for a transaction using realtime cache
+// RealtimeEstimateGas estimates gas for a transaction in real-time
 func (rc *RealtimeClient) RealtimeEstimateGas(ctx context.Context, args map[string]any) (uint64, error) {
 	var result string
 	err := rc.c.CallContext(ctx, &result, "eth_estimateGas", args, PendingTag)
