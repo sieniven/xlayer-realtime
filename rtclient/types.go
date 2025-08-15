@@ -9,6 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+type RealtimeDebugResult struct {
+	ConfirmHeight   uint64   `json:"confirmHeight"`
+	ExecutionHeight uint64   `json:"executionHeight"`
+	Mismatches      []string `json:"mismatches"`
+}
+
 type rpcTransaction struct {
 	tx *types.Transaction
 	txExtraInfo

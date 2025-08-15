@@ -270,7 +270,7 @@ func (cache *GlobalStateCache) DebugCompare(statedb vm.StateDB) []string {
 
 	mismatches := []string{}
 	for addr, accCache := range cache.cache.accountCache {
-		log.Info("[Realtime] Comparing account", "address", addr.String())
+		log.Info(fmt.Sprintf("[Realtime] Comparing account address: %s", addr.String()))
 
 		accDbNonce := statedb.GetNonce(addr)
 		if accCache.Nonce != accDbNonce {
