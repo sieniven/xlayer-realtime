@@ -2,7 +2,6 @@ package rtclient
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -37,17 +36,10 @@ func NewRealtimeClient(ctx context.Context, ethClient *ethclient.Client, rawurl 
 	}, nil
 }
 
-// RealtimeBlockNumber returns the number of the most recent block in real-time
-func (rc *RealtimeClient) RealtimeBlockNumber(ctx context.Context) (uint64, error) {
+// RealtimeBlockNumber returns the number of the block by tag in real-time
+func (rc *RealtimeClient) RealtimeBlockNumber(ctx context.Context, tag string) (uint64, error) {
 	var result hexutil.Uint64
-	err := rc.c.CallContext(ctx, &result, "eth_blockNumber", LatestTag)
-	return uint64(result), err
-}
-
-// RealtimePendingBlockNumber returns the number of the most recent block in real-time
-func (rc *RealtimeClient) RealtimePendingBlockNumber(ctx context.Context) (uint64, error) {
-	var result hexutil.Uint64
-	err := rc.c.CallContext(ctx, &result, "eth_blockNumber", PendingTag)
+	err := rc.c.CallContext(ctx, &result, "eth_blockNumber", tag)
 	return uint64(result), err
 }
 
@@ -114,21 +106,14 @@ func (rc *RealtimeClient) RealtimeGetStorageAt(ctx context.Context, address comm
 	return hexutil.Encode(result), err
 }
 
-// RealtimeGetLatestBlockTransactionCount returns the number of transactions in a block by number in real-time
-func (rc *RealtimeClient) RealtimeGetLatestBlockTransactionCount(ctx context.Context) (uint64, error) {
+// RealtimeGetBlockTransactionCount returns the number of transactions of the block by tag in real-time
+func (rc *RealtimeClient) RealtimeGetBlockTransactionCount(ctx context.Context, tag string) (uint64, error) {
 	var result hexutil.Uint64
-	err := rc.c.CallContext(ctx, &result, "eth_getBlockTransactionCountByNumber", LatestTag)
+	err := rc.c.CallContext(ctx, &result, "eth_getBlockTransactionCountByNumber", tag)
 	return uint64(result), err
 }
 
-// RealtimeGetPendingBlockTransactionCount returns the number of transactions in a block by number in real-time
-func (rc *RealtimeClient) RealtimeGetPendingBlockTransactionCount(ctx context.Context) (uint64, error) {
-	var result hexutil.Uint64
-	err := rc.c.CallContext(ctx, &result, "eth_getBlockTransactionCountByNumber", PendingTag)
-	return uint64(result), err
-}
-
-// RealtimeGetBlockTransactionCountByNumber returns the number of transactions in a block by number in real-time
+// RealtimeGetBlockTransactionCountByNumber returns the number of transactions of the specified block number in real-time
 func (rc *RealtimeClient) RealtimeGetBlockTransactionCountByNumber(ctx context.Context, blockNumber uint64) (uint64, error) {
 	var result hexutil.Uint64
 	err := rc.c.CallContext(ctx, &result, "eth_getBlockTransactionCountByNumber", blockNumber)
@@ -136,23 +121,16 @@ func (rc *RealtimeClient) RealtimeGetBlockTransactionCountByNumber(ctx context.C
 }
 
 // RealtimeGetTransactionByHash returns the information about a transaction requested by transaction hash in real-time
-func (rc *RealtimeClient) RealtimeGetTransactionByHash(ctx context.Context, txHash common.Hash) (*types.Transaction, error) {
-	var json *rpcTransaction
-	err := rc.c.CallContext(ctx, &json, "eth_getTransactionByHash", txHash)
+func (rc *RealtimeClient) RealtimeGetTransactionByHash(ctx context.Context, txHash common.Hash) (RpcTransaction, error) {
+	var result RpcTransaction
+	err := rc.c.CallContext(ctx, &result, "eth_getTransactionByHash", txHash)
 	if err != nil {
-		return nil, err
-	} else if json == nil {
-		return nil, ethereum.NotFound
-	} else if _, r, _ := json.tx.RawSignatureValues(); r == nil {
-		return nil, errors.New("server returned transaction without signature")
+		return RpcTransaction{}, err
 	}
-	if json.From != nil && json.BlockHash != nil {
-		setSenderFromServer(json.tx, *json.From, *json.BlockHash)
-	}
-	return json.tx, nil
+	return result, nil
 }
 
-// RealtimeGetTransactionByHash returns raw information about a transaction requested by transaction hash in real-time
+// RealtimeGetRawTransactionByHash returns raw information about a transaction requested by transaction hash in real-time
 func (rc *RealtimeClient) RealtimeGetRawTransactionByHash(ctx context.Context, txHash common.Hash) ([]byte, error) {
 	var result hexutil.Bytes
 	err := rc.c.CallContext(ctx, &result, "eth_getRawTransactionByHash", txHash)
@@ -177,6 +155,69 @@ func (rc *RealtimeClient) RealtimeGetInternalTransactions(ctx context.Context, t
 		return nil, err
 	}
 	return innerTxs, err
+}
+
+func (rc *RealtimeClient) RealtimeGetBlock(ctx context.Context, tag string) (map[string]interface{}, error) {
+	// Call eth_getBlockByNumber with fullTx=true to get full transaction details
+	fullTx := true
+	var result map[string]interface{}
+	err := rc.c.CallContext(ctx, &result, "eth_getBlockByNumber", tag, fullTx)
+	return result, err
+}
+
+func (rc *RealtimeClient) RealtimeGetBlockByNumber(ctx context.Context, blockNumber uint64) (map[string]interface{}, error) {
+	// Call eth_getBlockByNumber with fullTx=true to get full transaction details
+	fullTx := true
+	var result map[string]interface{}
+	err := rc.c.CallContext(ctx, &result, "eth_getBlockByNumber", blockNumber, fullTx)
+	return result, err
+}
+
+// RealtimeGetBlockByHash returns the information about a block requested by block hash in real-time
+func (rc *RealtimeClient) RealtimeGetBlockByHash(ctx context.Context, blockHash common.Hash, fullTx bool) (map[string]interface{}, error) {
+	var result map[string]interface{}
+	err := rc.c.CallContext(ctx, &result, "eth_getBlockByHash", blockHash, fullTx)
+	return result, err
+}
+
+// RealtimeGetBlockTransactionCountByHash returns the number of transactions in a block requested by block hash in real-time
+func (rc *RealtimeClient) RealtimeGetBlockTransactionCountByHash(ctx context.Context, blockHash common.Hash) (uint64, error) {
+	var result hexutil.Uint64
+	err := rc.c.CallContext(ctx, &result, "eth_getBlockTransactionCountByHash", blockHash)
+	return uint64(result), err
+}
+
+func (rc *RealtimeClient) RealtimeGetBlockInternalTransactions(ctx context.Context, blockNumber uint64) (map[common.Hash][]*types.InnerTx, error) {
+	var result map[common.Hash][]*types.InnerTx
+	err := rc.c.CallContext(ctx, &result, "eth_getBlockInternalTransactions", blockNumber)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (rc *RealtimeClient) RealtimeGetBlockReceiptsByNumber(ctx context.Context, blockNumber uint64) ([]*types.Receipt, error) {
+	var receipts []*types.Receipt
+	err := rc.c.CallContext(ctx, &receipts, "eth_getBlockReceipts", blockNumber)
+	if err != nil {
+		return nil, err
+	}
+	return receipts, nil
+}
+
+func (rc *RealtimeClient) RealtimeGetBlockReceiptsByHash(ctx context.Context, blockHash common.Hash) ([]*types.Receipt, error) {
+	var receipts []*types.Receipt
+	err := rc.c.CallContext(ctx, &receipts, "eth_getBlockReceipts", blockHash)
+	if err != nil {
+		return nil, err
+	}
+	return receipts, nil
+}
+
+func (rc *RealtimeClient) RealtimeEnabled(ctx context.Context) (bool, error) {
+	var result bool
+	err := rc.c.CallContext(ctx, &result, "eth_realtimeEnabled")
+	return result, err
 }
 
 func (rc *RealtimeClient) RealtimeGetTokenBalance(
@@ -209,72 +250,4 @@ func (rc *RealtimeClient) RealtimeGetTokenBalance(
 	}
 
 	return balance, nil
-}
-
-func (rc *RealtimeClient) EthGetTokenBalance(
-	ctx context.Context,
-	addr common.Address,
-	erc20Addr common.Address,
-) (*big.Int, error) {
-	// Pack the balanceOf function call
-	data, err := erc20ABI.Pack("balanceOf", addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pack balanceOf call: %v", err)
-	}
-
-	// Make the eth_call
-	result, err := rc.CallContract(ctx, ethereum.CallMsg{
-		To:   &erc20Addr,
-		Data: data,
-	}, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call contract: %v", err)
-	}
-
-	// Unpack the result
-	var balance *big.Int
-	err = erc20ABI.UnpackIntoInterface(&balance, "balanceOf", result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack result: %v", err)
-	}
-
-	return balance, nil
-}
-
-func (rc *RealtimeClient) RealtimeGetBlockByNumber(ctx context.Context, blockNumber uint64) (map[string]interface{}, error) {
-	// Call eth_getBlockByNumber with fullTx=true to get full transaction details
-	fullTx := true
-	var result map[string]interface{}
-	err := rc.c.CallContext(ctx, &result, "eth_getBlockByNumber", blockNumber, fullTx)
-	return result, err
-}
-
-// RealtimeGetBlockByHash returns the information about a block requested by block hash in real-time
-func (rc *RealtimeClient) RealtimeGetBlockByHash(ctx context.Context, blockHash common.Hash, fullTx bool) (map[string]interface{}, error) {
-	var result map[string]interface{}
-	err := rc.c.CallContext(ctx, &result, "eth_getBlockByHash", blockHash, fullTx)
-	return result, err
-}
-
-// RealtimeGetBlockTransactionCountByHash returns the number of transactions in a block requested by block hash in real-time
-func (rc *RealtimeClient) RealtimeGetBlockTransactionCountByHash(ctx context.Context, blockHash common.Hash) (uint64, error) {
-	var result hexutil.Uint64
-	err := rc.c.CallContext(ctx, &result, "eth_getBlockTransactionCountByHash", blockHash)
-	return uint64(result), err
-}
-
-func (rc *RealtimeClient) RealtimeGetBlockInternalTransactions(ctx context.Context, blockNumber uint64) (map[common.Hash][]*types.InnerTx, error) {
-	var result map[common.Hash][]*types.InnerTx
-	err := rc.c.CallContext(ctx, &result, "eth_getBlockInternalTransactions", blockNumber)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
-func (rc *RealtimeClient) RealtimeEnabled(ctx context.Context) (bool, error) {
-	var result bool
-	err := rc.c.CallContext(ctx, &result, "eth_realtimeEnabled")
-	return result, err
 }

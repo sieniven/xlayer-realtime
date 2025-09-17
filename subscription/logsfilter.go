@@ -1,7 +1,7 @@
 package subscription
 
 import (
-	libcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -12,11 +12,11 @@ import (
 // how many subscribers have this set on
 type LogsFilter struct {
 	allAddrs       int
-	addrs          map[libcommon.Address]int
+	addrs          map[common.Address]int
 	allTopics      int
-	topics         map[libcommon.Hash]int
-	topicsOriginal [][]libcommon.Hash // Original topic filters to be applied before distributing to individual subscribers
-	sender         Sub[*types.Log]    // nil for aggregate subscriber, for appropriate stream server otherwise
+	topics         map[common.Hash]int
+	topicsOriginal [][]common.Hash // Original topic filters to be applied before distributing to individual subscribers
+	sender         Sub[*types.Log] // nil for aggregate subscriber, for appropriate stream server otherwise
 }
 
 func (l *LogsFilter) Send(lg *types.Log) {
@@ -27,7 +27,7 @@ func (l *LogsFilter) Close() {
 	l.sender.Close()
 }
 
-func chooseTopics(filter *LogsFilter, logTopics []libcommon.Hash) bool {
+func chooseTopics(filter *LogsFilter, logTopics []common.Hash) bool {
 	var found bool
 	for _, logTopic := range logTopics {
 		if _, ok := filter.topics[logTopic]; ok {

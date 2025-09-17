@@ -24,7 +24,12 @@ func (api *RealtimeAPIImpl) Call(ctx context.Context, args ethapi.TransactionArg
 		return backend.Call(ctx, args, blockNrOrHash, overrides, blockOverrides)
 	}
 
-	reader, blockNum, err := api.createStateReader(blockNrOrHash)
+	if blockNrOrHash == nil {
+		latest := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+		blockNrOrHash = &latest
+	}
+
+	reader, blockNum, err := api.createStateReader(*blockNrOrHash)
 	if err != nil || reader == nil {
 		backend := ethapi.NewBlockChainAPI(api.b)
 		return backend.Call(ctx, args, blockNrOrHash, overrides, blockOverrides)
@@ -34,12 +39,12 @@ func (api *RealtimeAPIImpl) Call(ctx context.Context, args ethapi.TransactionArg
 }
 
 func (api *RealtimeAPIImpl) doRealtimeCall(ctx context.Context, args ethapi.TransactionArgs, reader state.Reader, blockNum uint64, overrides *override.StateOverride, blockOverrides *override.BlockOverrides) (hexutil.Bytes, error) {
-	header, _, _, ok := api.cacheDB.Stateless.GetHeader(blockNum)
+	header, _, _, ok := api.cacheDB.Stateless.GetBlockInfo(blockNum)
 	if !ok {
 		return nil, fmt.Errorf("header not found for block number %d", blockNum)
 	}
 
-	statedb, err := api.GetStateDB(ctx, reader)
+	statedb, err := api.GetStateDbWithCacheReader(ctx, reader)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +67,17 @@ func (api *RealtimeAPIImpl) EstimateGas(ctx context.Context, args ethapi.Transac
 		return backend.EstimateGas(ctx, args, blockNrOrHash, overrides, blockOverrides)
 	}
 
-	reader, blockNum, err := api.createStateReader(blockNrOrHash)
+	if blockNrOrHash == nil {
+		latest := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+		blockNrOrHash = &latest
+	}
+
+	reader, blockNum, err := api.createStateReader(*blockNrOrHash)
 	if err != nil || reader == nil {
 		backend := ethapi.NewBlockChainAPI(api.b)
 		return backend.EstimateGas(ctx, args, blockNrOrHash, overrides, blockOverrides)
 	}
-	header, _, _, ok := api.cacheDB.Stateless.GetHeader(blockNum)
+	header, _, _, ok := api.cacheDB.Stateless.GetBlockInfo(blockNum)
 	if !ok {
 		return 0, fmt.Errorf("header not found for block number %d", blockNum)
 	}
@@ -76,13 +86,13 @@ func (api *RealtimeAPIImpl) EstimateGas(ctx context.Context, args ethapi.Transac
 }
 
 func (api *RealtimeAPIImpl) doRealtimeEstimateGas(ctx context.Context, args ethapi.TransactionArgs, reader state.Reader, header *types.Header, overrides *override.StateOverride, blockOverrides *override.BlockOverrides) (hexutil.Uint64, error) {
-	state, err := api.GetStateDB(ctx, reader)
+	statedb, err := api.GetStateDbWithCacheReader(ctx, reader)
 	if err != nil {
 		return 0, err
 	}
 
 	gasCap := api.b.RPCGasCap()
-	if err := overrides.Apply(state, nil); err != nil {
+	if err := overrides.Apply(statedb, nil); err != nil {
 		return 0, err
 	}
 	// Construct the gas estimator option from the user input
@@ -91,7 +101,7 @@ func (api *RealtimeAPIImpl) doRealtimeEstimateGas(ctx context.Context, args etha
 		Chain:          ethapi.NewChainContext(ctx, api.b),
 		Header:         header,
 		BlockOverrides: blockOverrides,
-		State:          state,
+		State:          statedb,
 		ErrorRatio:     ethapi.GetEstimateGasErrorRatio(),
 	}
 	// Set any required transaction default, but make sure the gas cap itself is not messed with

@@ -1,26 +1,26 @@
 package types
 
 import (
-	libcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 )
 
 type Changeset struct {
-	DeletedAccounts map[libcommon.Address]struct{}
-	BalanceChanges  map[libcommon.Address]*uint256.Int
-	NonceChanges    map[libcommon.Address]uint64
-	CodeHashChanges map[libcommon.Address]libcommon.Hash
-	CodeChanges     map[libcommon.Hash][]byte
-	StorageChanges  map[libcommon.Address]map[libcommon.Hash]libcommon.Hash
+	DeletedAccounts map[common.Address]struct{}
+	BalanceChanges  map[common.Address]*uint256.Int
+	NonceChanges    map[common.Address]uint64
+	CodeHashChanges map[common.Address]common.Hash
+	CodeChanges     map[common.Hash][]byte
+	StorageChanges  map[common.Address]map[common.Hash]common.Hash
 }
 
 func NewChangeset() *Changeset {
 	return &Changeset{
-		DeletedAccounts: make(map[libcommon.Address]struct{}),
-		BalanceChanges:  make(map[libcommon.Address]*uint256.Int),
-		NonceChanges:    make(map[libcommon.Address]uint64),
-		CodeHashChanges: make(map[libcommon.Address]libcommon.Hash),
-		CodeChanges:     make(map[libcommon.Hash][]byte),
-		StorageChanges:  make(map[libcommon.Address]map[libcommon.Hash]libcommon.Hash),
+		DeletedAccounts: make(map[common.Address]struct{}),
+		BalanceChanges:  make(map[common.Address]*uint256.Int),
+		NonceChanges:    make(map[common.Address]uint64),
+		CodeHashChanges: make(map[common.Address]common.Hash),
+		CodeChanges:     make(map[common.Hash][]byte),
+		StorageChanges:  make(map[common.Address]map[common.Hash]common.Hash),
 	}
 }

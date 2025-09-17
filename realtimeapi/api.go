@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	libcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/filters"
@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	MockBlockHash         = libcommon.BytesToHash([]byte{1})
-	EmptyBlockHash        = libcommon.Hash{}
+	MockBlockHash         = common.BytesToHash([]byte{1})
+	EmptyBlockHash        = common.Hash{}
 	ErrRealtimeNotEnabled = fmt.Errorf("realtime is not enabled")
 )
 
@@ -43,43 +43,62 @@ func NewRealtimeAPI(
 	}
 }
 
-func (api *RealtimeAPIImpl) getBlockNumber(blockNr rpc.BlockNumber) (uint64, bool, error) {
+func (api *RealtimeAPIImpl) getBlockNumberOrHash(blockNrOrHash rpc.BlockNumberOrHash) (uint64, bool, bool, error) {
+	if hash, ok := blockNrOrHash.Hash(); ok {
+		blockNum, found := api.cacheDB.Stateless.GetBlockNumberByHash(hash)
+		if !found {
+			return 0, false, false, fmt.Errorf("block %x not found", hash)
+		}
+		confirmHeight, err := api.getConfirmHeightFromCache()
+		if err != nil {
+			return 0, false, false, err
+		}
+		return blockNum, blockNum == confirmHeight, false, nil
+	} else {
+		if blockNrOrHash.BlockNumber == nil {
+			return 0, false, false, fmt.Errorf("no block number or hash provided")
+		}
+		return api.getBlockNumber(*blockNrOrHash.BlockNumber)
+	}
+}
+
+func (api *RealtimeAPIImpl) getBlockNumber(blockNr rpc.BlockNumber) (uint64, bool, bool, error) {
 	if api.cacheDB == nil || !api.cacheDB.ReadyFlag.Load() {
-		return 0, false, ErrRealtimeNotEnabled
+		return 0, false, false, ErrRealtimeNotEnabled
 	}
 
 	confirmHeight, err := api.getConfirmHeightFromCache()
 	if err != nil {
-		return 0, false, err
+		return 0, false, false, err
+	}
+	pendingHeight, err := api.getPendingHeightFromCache()
+	if err != nil {
+		return 0, false, false, err
 	}
 
 	switch blockNr {
 	case rpc.LatestBlockNumber:
-		return confirmHeight, true, nil
+		return confirmHeight, true, false, nil
 	case rpc.PendingBlockNumber:
-		pendingHeight, err := api.getPendingHeightFromCache()
-		if err != nil {
-			return 0, false, err
-		}
-		return pendingHeight, true, nil
+		return pendingHeight, false, true, nil
 	// Unsupported tags
 	case rpc.EarliestBlockNumber:
-		return 0, false, fmt.Errorf("earliest block number is not realtime supported")
+		return 0, false, false, fmt.Errorf("earliest block number is not realtime supported")
 	case rpc.FinalizedBlockNumber:
-		return 0, false, fmt.Errorf("finalized block number is not realtime supported")
+		return 0, false, false, fmt.Errorf("finalized block number is not realtime supported")
 	case rpc.SafeBlockNumber:
-		return 0, false, fmt.Errorf("safe block number is not realtime supported")
+		return 0, false, false, fmt.Errorf("safe block number is not realtime supported")
 	default:
 		blockNumber := uint64(blockNr.Int64())
-		if blockNumber > confirmHeight {
-			return 0, false, fmt.Errorf("block with number %d not found", blockNumber)
+		if blockNumber > pendingHeight {
+			return 0, false, false, fmt.Errorf("block with number %d not found", blockNumber)
 		}
-		return blockNumber, blockNumber == confirmHeight, nil
+		return blockNumber, blockNumber == confirmHeight, blockNumber == pendingHeight, nil
 	}
 }
 
 func (api *RealtimeAPIImpl) getPendingHeightFromCache() (uint64, error) {
-	pendingHeight := api.cacheDB.GetCurrentPendingHeight()
+	pendingHeight := api.cacheDB.GetPendingHeight()
 	if pendingHeight == 0 {
 		return 0, fmt.Errorf("no pending block number found in realtime cache")
 	}
@@ -94,39 +113,29 @@ func (api *RealtimeAPIImpl) getConfirmHeightFromCache() (uint64, error) {
 	return confirmHeight, nil
 }
 
-func (api *RealtimeAPIImpl) createStateReader(blockNrOrHash *rpc.BlockNumberOrHash) (reader state.Reader, blockNumber uint64, err error) {
-	if blockNrOrHash.BlockNumber == nil {
-		// todo: add support for latest block hash
-		return nil, 0, fmt.Errorf("failed to create state reader: block number is nil")
-	}
-
-	confirmHeight, err := api.getConfirmHeightFromCache()
-	if err != nil {
-		return nil, 0, err
-	}
-	pendingHeight, err := api.getPendingHeightFromCache()
+func (api *RealtimeAPIImpl) createStateReader(blockNrOrHash rpc.BlockNumberOrHash) (state.Reader, uint64, error) {
+	blockHeight, _, isPending, err := api.getBlockNumberOrHash(blockNrOrHash)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Realtime supports pending and latest tags only
-	if *blockNrOrHash.BlockNumber == rpc.PendingBlockNumber || *blockNrOrHash.BlockNumber == rpc.BlockNumber(pendingHeight) {
-		pendingReader := api.cacheDB.GetPendingStateCache(pendingHeight)
-		if pendingReader != nil {
-			reader = pendingReader
-		} else {
-			// Pending block was closed, we use the latest confirmed global state
-			reader = api.cacheDB.State
+	if isPending {
+		pendingReader, pendingHeight := api.cacheDB.GetPendingStateCache()
+		if pendingReader == nil {
+			// No pending block opened yet, use latest state cache
+			pendingReader, pendingHeight = api.cacheDB.GetLatestStateCache()
 		}
-		blockNumber = pendingHeight
-	} else if *blockNrOrHash.BlockNumber == rpc.LatestBlockNumber || *blockNrOrHash.BlockNumber == rpc.BlockNumber(confirmHeight) {
-		reader = api.cacheDB.State
-		blockNumber = confirmHeight
+		return pendingReader, pendingHeight, nil
+	} else {
+		reader := api.cacheDB.GetStateCacheByHeight(blockHeight)
+		if reader == nil {
+			return nil, 0, fmt.Errorf("state reader not found for block %d", blockHeight)
+		}
+		return reader, blockHeight, nil
 	}
-	return
 }
 
-func (api *RealtimeAPIImpl) GetStateDB(ctx context.Context, reader state.Reader) (*state.StateDB, error) {
+func (api *RealtimeAPIImpl) GetStateDbWithCacheReader(ctx context.Context, reader state.Reader) (*state.StateDB, error) {
 	statedb, _, err := api.b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
 	if err != nil {
 		return nil, err
@@ -140,14 +149,14 @@ func (api *RealtimeAPIImpl) GetStateDB(ctx context.Context, reader state.Reader)
 // newRPCTransaction_realtime returns a transaction that will serialize to the RPC
 // representation, with the given location metadata set (if available).
 // Note that realtime API do not support blockHash.
-func newRPCTransaction_realtime(tx *types.Transaction, txblockhash libcommon.Hash, blockNumber uint64, blockTime uint64, index uint64, baseFee *big.Int, config *params.ChainConfig, receipt *types.Receipt) *ethapi.RPCTransaction {
+func newRPCTransaction_realtime(tx *types.Transaction, txblockhash common.Hash, blockNumber uint64, blockTime uint64, index uint64, baseFee *big.Int, config *params.ChainConfig, receipt *types.Receipt) *ethapi.RPCTransaction {
 	blockhash := txblockhash
 	if blockhash == EmptyBlockHash {
 		blockhash = MockBlockHash
 	}
 
 	result := ethapi.NewRPCTransaction(tx, blockhash, blockNumber, blockTime, index, baseFee, config, receipt)
-	result.BlockHash = &libcommon.Hash{}
+	result.BlockHash = &txblockhash
 	return result
 }
 
@@ -159,7 +168,7 @@ func (api *RealtimeAPIImpl) tryGetBlockResponseFromNumber(
 	blockNum uint64,
 	fullTx bool,
 ) (map[string]interface{}, error) {
-	header, _, _, ok := api.cacheDB.Stateless.GetHeader(blockNum)
+	header, _, _, ok := api.cacheDB.Stateless.GetBlockInfo(blockNum)
 	if !ok {
 		return nil, fmt.Errorf("header not found for block %d", blockNum)
 	}

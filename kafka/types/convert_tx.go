@@ -5,9 +5,10 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func fromCommonTxMessage(tx *types.Transaction, blockNumber uint64) (TransactionMessage, error) {
+func fromCommonTxMessage(tx *types.Transaction, blockNumber uint64, blockTime uint64) (TransactionMessage, error) {
 	msg := TransactionMessage{
 		BlockNumber: blockNumber,
+		BlockTime:   blockTime,
 		Type:        tx.Type(),
 		Hash:        tx.Hash(),
 		ChainID:     tx.ChainId(),
@@ -22,8 +23,8 @@ func fromCommonTxMessage(tx *types.Transaction, blockNumber uint64) (Transaction
 	return msg, nil
 }
 
-func fromLegacyTxMessage(tx *types.Transaction, blockNumber uint64) (TransactionMessage, error) {
-	msg, err := fromCommonTxMessage(tx, blockNumber)
+func fromLegacyTxMessage(tx *types.Transaction, blockNumber uint64, blockTime uint64) (TransactionMessage, error) {
+	msg, err := fromCommonTxMessage(tx, blockNumber, blockTime)
 	if err != nil {
 		return TransactionMessage{}, err
 	}
@@ -32,8 +33,8 @@ func fromLegacyTxMessage(tx *types.Transaction, blockNumber uint64) (Transaction
 	return msg, nil
 }
 
-func fromAccessListTxMessage(tx *types.Transaction, blockNumber uint64) (TransactionMessage, error) {
-	msg, err := fromLegacyTxMessage(tx, blockNumber)
+func fromAccessListTxMessage(tx *types.Transaction, blockNumber uint64, blockTime uint64) (TransactionMessage, error) {
+	msg, err := fromLegacyTxMessage(tx, blockNumber, blockTime)
 	if err != nil {
 		return TransactionMessage{}, err
 	}
@@ -46,8 +47,8 @@ func fromAccessListTxMessage(tx *types.Transaction, blockNumber uint64) (Transac
 	return msg, nil
 }
 
-func fromDynamicFeeTxMessage(tx *types.Transaction, blockNumber uint64) (TransactionMessage, error) {
-	msg, err := fromAccessListTxMessage(tx, blockNumber)
+func fromDynamicFeeTxMessage(tx *types.Transaction, blockNumber uint64, blockTime uint64) (TransactionMessage, error) {
+	msg, err := fromAccessListTxMessage(tx, blockNumber, blockTime)
 	if err != nil {
 		return TransactionMessage{}, err
 	}
@@ -57,9 +58,9 @@ func fromDynamicFeeTxMessage(tx *types.Transaction, blockNumber uint64) (Transac
 	return msg, nil
 }
 
-func fromBlobTxMessage(tx *types.Transaction, blockNumber uint64) (TransactionMessage, error) {
+func fromBlobTxMessage(tx *types.Transaction, blockNumber uint64, blockTime uint64) (TransactionMessage, error) {
 	// Check if it's a BlobTx or BlobTxWrapper
-	msg, err := fromDynamicFeeTxMessage(tx, blockNumber)
+	msg, err := fromDynamicFeeTxMessage(tx, blockNumber, blockTime)
 	if err != nil {
 		return TransactionMessage{}, err
 	}

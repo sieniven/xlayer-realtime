@@ -8,11 +8,12 @@ import (
 )
 
 type RealtimeSubResult struct {
-	Header   *types.Header      `json:"Header,omitempty"`
-	TxHash   string             `json:"TxHash,omitempty"`
-	TxData   *types.Transaction `json:"TxData,omitempty"`
-	Receipt  *types.Receipt     `json:"Receipt,omitempty"`
-	InnerTxs []*types.InnerTx   `json:"InnerTxs,omitempty"`
+	Header    *types.Header      `json:"Header,omitempty"`
+	TxHash    string             `json:"TxHash,omitempty"`
+	TxData    *types.Transaction `json:"TxData,omitempty"`
+	Receipt   *types.Receipt     `json:"Receipt,omitempty"`
+	InnerTxs  []*types.InnerTx   `json:"InnerTxs,omitempty"`
+	BlockTime uint64             `json:"BlockTime,omitempty"`
 }
 
 type RealtimeDebugResult struct {

@@ -6,9 +6,10 @@ import (
 	"math/big"
 	"testing"
 
-	libcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
@@ -22,10 +23,10 @@ var (
 	DefaultL2AdminAddress             = "0x8f8E2d6cF621f30e9a11309D6A56A876281Fd534"
 	DefaultL2AdminPrivateKey          = "0x815405dddb0e2a99b12af775fd2929e526704e1d1aea6a0b4e74dc33e2f7fcd2"
 
-	addr         = libcommon.HexToAddress("0x0000000000000000000000000000000000000001")
-	testFromAddr = libcommon.HexToAddress("0x8f8E2d6cF621f30e9a11309D6A56A876281Fd534")
-	testToAddr   = libcommon.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
-	accesses     = types.AccessList{{Address: addr, StorageKeys: []libcommon.Hash{{0}}}}
+	addr         = common.HexToAddress("0x0000000000000000000000000000000000000001")
+	testFromAddr = common.HexToAddress("0x8f8E2d6cF621f30e9a11309D6A56A876281Fd534")
+	testToAddr   = common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
+	accesses     = types.AccessList{{Address: addr, StorageKeys: []common.Hash{{0}}}}
 )
 
 var (
@@ -34,7 +35,7 @@ var (
 
 	emptyTx = types.NewTransaction(
 		0,
-		libcommon.HexToAddress(testToAddr.String()),
+		common.HexToAddress(testToAddr.String()),
 		big.NewInt(0), 0, big.NewInt(10),
 		nil,
 	)
@@ -47,7 +48,7 @@ var (
 		big.NewInt(10),
 		2000,
 		big.NewInt(1),
-		libcommon.FromHex("5544"),
+		common.FromHex("5544"),
 	)
 	signedLegacyTx, _ = types.SignTx(legacyTx, signer, privateKey)
 
@@ -58,7 +59,7 @@ var (
 		GasPrice:   big.NewInt(1),
 		To:         &testToAddr,
 		Value:      big.NewInt(10),
-		Data:       libcommon.FromHex("5544"),
+		Data:       common.FromHex("5544"),
 		AccessList: accesses,
 	})
 	signedAccessListTx, _ = types.SignTx(accessListTx, signer, privateKey)
@@ -71,7 +72,7 @@ var (
 		GasTipCap:  big.NewInt(1),
 		To:         &testToAddr,
 		Value:      big.NewInt(10),
-		Data:       libcommon.FromHex("5544"),
+		Data:       common.FromHex("5544"),
 		AccessList: accesses,
 	})
 	signedDynFeeTx, _ = types.SignTx(dynFeeTx, signer, privateKey)
@@ -84,75 +85,75 @@ var (
 		GasTipCap:  uint256.MustFromBig(big.NewInt(1)),
 		To:         testToAddr,
 		Value:      uint256.MustFromBig(big.NewInt(10)),
-		Data:       libcommon.FromHex("5544"),
+		Data:       common.FromHex("5544"),
 		AccessList: accesses,
 		BlobFeeCap: uint256.MustFromBig(big.NewInt(10)),
-		BlobHashes: []libcommon.Hash{{0}},
+		BlobHashes: []common.Hash{{0}},
 	})
 	signedBlobTx, _ = types.SignTx(blobTx, signer, privateKey)
 
 	txReceipt = &types.Receipt{
 		Type:              types.LegacyTxType,
-		PostState:         libcommon.Hash{2}.Bytes(),
+		PostState:         common.Hash{2}.Bytes(),
 		CumulativeGasUsed: 3,
 		Logs: []*types.Log{
-			{Address: libcommon.BytesToAddress([]byte{0x22})},
-			{Address: libcommon.BytesToAddress([]byte{0x02, 0x22})},
+			{Address: common.BytesToAddress([]byte{0x22})},
+			{Address: common.BytesToAddress([]byte{0x02, 0x22})},
 		},
 		TxHash:          signedLegacyTx.Hash(),
-		ContractAddress: libcommon.BytesToAddress([]byte{0x02, 0x22, 0x22}),
+		ContractAddress: common.BytesToAddress([]byte{0x02, 0x22, 0x22}),
 		GasUsed:         2,
 	}
 
 	txInnerTxs = []*types.InnerTx{
 		{
 			Name:     "innerTx1",
-			CallType: types.CALL_TYP,
+			CallType: vm.CALL_TYP,
 		},
 	}
 
 	txChangeset = &realtimeTypes.Changeset{
-		BalanceChanges: map[libcommon.Address]*uint256.Int{
+		BalanceChanges: map[common.Address]*uint256.Int{
 			testToAddr: uint256.NewInt(10),
 		},
 	}
 
 	accessListTxReceipt = &types.Receipt{
 		Type:              types.AccessListTxType,
-		PostState:         libcommon.Hash{3}.Bytes(),
+		PostState:         common.Hash{3}.Bytes(),
 		CumulativeGasUsed: 6,
 		Logs: []*types.Log{
-			{Address: libcommon.BytesToAddress([]byte{0x33})},
-			{Address: libcommon.BytesToAddress([]byte{0x03, 0x33})},
+			{Address: common.BytesToAddress([]byte{0x33})},
+			{Address: common.BytesToAddress([]byte{0x03, 0x33})},
 		},
 		TxHash:          signedAccessListTx.Hash(),
-		ContractAddress: libcommon.BytesToAddress([]byte{0x03, 0x33, 0x33}),
+		ContractAddress: common.BytesToAddress([]byte{0x03, 0x33, 0x33}),
 		GasUsed:         3,
 	}
 
 	dynFeeTxReceipt = &types.Receipt{
 		Type:              types.DynamicFeeTxType,
-		PostState:         libcommon.Hash{4}.Bytes(),
+		PostState:         common.Hash{4}.Bytes(),
 		CumulativeGasUsed: 10,
 		Logs: []*types.Log{
-			{Address: libcommon.BytesToAddress([]byte{0x33})},
-			{Address: libcommon.BytesToAddress([]byte{0x03, 0x33})},
+			{Address: common.BytesToAddress([]byte{0x33})},
+			{Address: common.BytesToAddress([]byte{0x03, 0x33})},
 		},
 		TxHash:          signedDynFeeTx.Hash(),
-		ContractAddress: libcommon.BytesToAddress([]byte{0x03, 0x33, 0x33}),
+		ContractAddress: common.BytesToAddress([]byte{0x03, 0x33, 0x33}),
 		GasUsed:         3,
 	}
 
 	blobTxReceipt = &types.Receipt{
 		Type:              types.BlobTxType,
-		PostState:         libcommon.Hash{2}.Bytes(),
+		PostState:         common.Hash{2}.Bytes(),
 		CumulativeGasUsed: 15,
 		Logs: []*types.Log{
-			{Address: libcommon.BytesToAddress([]byte{0x22})},
-			{Address: libcommon.BytesToAddress([]byte{0x02, 0x22})},
+			{Address: common.BytesToAddress([]byte{0x22})},
+			{Address: common.BytesToAddress([]byte{0x02, 0x22})},
 		},
 		TxHash:          signedBlobTx.Hash(),
-		ContractAddress: libcommon.BytesToAddress([]byte{0x02, 0x22, 0x22}),
+		ContractAddress: common.BytesToAddress([]byte{0x02, 0x22, 0x22}),
 		GasUsed:         5,
 	}
 )
@@ -182,8 +183,29 @@ func AssertHeader(t *testing.T, header *types.Header, rcvHeader *types.Header) {
 	assert.Equal(t, header.ExcessBlobGas, rcvHeader.ExcessBlobGas)
 }
 
-func AssertCommonTx(t *testing.T, msg kafkaTypes.TransactionMessage, tx *types.Transaction, blockNumber uint64, txType int) {
+func AssertCommonTx(t *testing.T, msg kafkaTypes.TransactionMessage, tx *types.Transaction, blockNumber uint64, blockTime uint64, txType int) {
 	assert.Equal(t, msg.BlockNumber, blockNumber)
+	assert.Equal(t, msg.BlockTime, blockTime)
+	assert.Equal(t, int(msg.Type), txType)
+	assert.Equal(t, msg.Hash, tx.Hash())
+	assert.Equal(t, msg.ChainID.Uint64(), tx.ChainId().Uint64())
+	assert.Equal(t, msg.Nonce, tx.Nonce())
+	assert.Equal(t, msg.Gas, tx.Gas())
+	assert.Equal(t, msg.To.String(), testToAddr.String())
+	assert.Equal(t, msg.Value.String(), tx.Value().String())
+	assert.Equal(t, string(msg.Data), string(tx.Data()))
+	v, r, s := tx.RawSignatureValues()
+	assert.Equal(t, msg.R.String(), r.String())
+	assert.Equal(t, msg.S.String(), s.String())
+	assert.Equal(t, msg.V.String(), v.String())
+
+	// Check sender
+	txSender, err := types.Sender(signer, tx)
+	assert.NilError(t, err)
+	assert.Equal(t, txSender, testFromAddr)
+}
+
+func AssertCommonTxWithoutBlockNumber(t *testing.T, msg kafkaTypes.TransactionMessage, tx *types.Transaction, txType int) {
 	assert.Equal(t, int(msg.Type), txType)
 	assert.Equal(t, msg.Hash, tx.Hash())
 	assert.Equal(t, msg.ChainID.Uint64(), tx.ChainId().Uint64())

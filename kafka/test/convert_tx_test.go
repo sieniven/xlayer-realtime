@@ -11,16 +11,17 @@ import (
 func TestLegacyTx(t *testing.T) {
 	// Test from
 	blockNumber := uint64(100)
-	emptyMsg, err := kafkaTypes.ToKafkaTransactionMessage(signedEmptyTx, emptyTxReceipt, nil, nil, blockNumber)
+	blockTime := uint64(1000)
+	emptyMsg, err := kafkaTypes.ToKafkaTransactionMessage(signedEmptyTx, emptyTxReceipt, nil, nil, blockNumber, blockTime)
 	assert.NilError(t, err)
-	AssertCommonTx(t, emptyMsg, signedEmptyTx, blockNumber, types.LegacyTxType)
+	AssertCommonTx(t, emptyMsg, signedEmptyTx, blockNumber, blockTime, types.LegacyTxType)
 	assert.Equal(t, emptyMsg.GasPrice.String(), signedEmptyTx.GasPrice().String())
 	AssertReceipt(t, emptyMsg, emptyTxReceipt)
 	AssertInnerTxs(t, emptyMsg, nil)
 
-	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedLegacyTx, txReceipt, txInnerTxs, txChangeset, blockNumber)
+	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedLegacyTx, txReceipt, txInnerTxs, txChangeset, blockNumber, blockTime)
 	assert.NilError(t, err)
-	AssertCommonTx(t, msg, signedLegacyTx, blockNumber, types.LegacyTxType)
+	AssertCommonTx(t, msg, signedLegacyTx, blockNumber, blockTime, types.LegacyTxType)
 	assert.Equal(t, msg.GasPrice.String(), signedLegacyTx.GasPrice().String())
 	AssertReceipt(t, msg, txReceipt)
 	AssertInnerTxs(t, msg, txInnerTxs)
@@ -30,22 +31,23 @@ func TestLegacyTx(t *testing.T) {
 	convertEmptyTx, convertBlockNumber, err := emptyMsg.GetTransaction()
 	assert.NilError(t, err)
 	assert.Equal(t, convertBlockNumber, blockNumber)
-	AssertCommonTx(t, emptyMsg, convertEmptyTx, convertBlockNumber, types.LegacyTxType)
+	AssertCommonTx(t, emptyMsg, convertEmptyTx, convertBlockNumber, blockTime, types.LegacyTxType)
 	assert.Equal(t, emptyMsg.GasPrice.String(), convertEmptyTx.GasPrice().String())
 
 	convertLegacyTx, convertBlockNumber, err := msg.GetTransaction()
 	assert.NilError(t, err)
 	assert.Equal(t, convertBlockNumber, blockNumber)
-	AssertCommonTx(t, msg, convertLegacyTx, convertBlockNumber, types.LegacyTxType)
+	AssertCommonTx(t, msg, convertLegacyTx, convertBlockNumber, blockTime, types.LegacyTxType)
 	assert.Equal(t, msg.GasPrice.String(), convertLegacyTx.GasPrice().String())
 }
 
 func TestAccessListTx(t *testing.T) {
 	// Test from
 	blockNumber := uint64(100)
-	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedAccessListTx, accessListTxReceipt, txInnerTxs, txChangeset, blockNumber)
+	blockTime := uint64(1000)
+	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedAccessListTx, accessListTxReceipt, txInnerTxs, txChangeset, blockNumber, blockTime)
 	assert.NilError(t, err)
-	AssertCommonTx(t, msg, signedAccessListTx, blockNumber, types.AccessListTxType)
+	AssertCommonTx(t, msg, signedAccessListTx, blockNumber, blockTime, types.AccessListTxType)
 	assert.Equal(t, msg.GasPrice.String(), signedAccessListTx.GasPrice().String())
 	AssertReceipt(t, msg, accessListTxReceipt)
 	AssertInnerTxs(t, msg, txInnerTxs)
@@ -56,7 +58,7 @@ func TestAccessListTx(t *testing.T) {
 	convertAccessListTx, convertBlockNumber, err := msg.GetTransaction()
 	assert.NilError(t, err)
 	assert.Equal(t, convertBlockNumber, blockNumber)
-	AssertCommonTx(t, msg, convertAccessListTx, convertBlockNumber, types.AccessListTxType)
+	AssertCommonTx(t, msg, convertAccessListTx, convertBlockNumber, blockTime, types.AccessListTxType)
 	assertTxAccessList(t, convertAccessListTx.AccessList())
 	assert.Equal(t, msg.GasPrice.String(), convertAccessListTx.GasPrice().String())
 }
@@ -64,9 +66,10 @@ func TestAccessListTx(t *testing.T) {
 func TestDynamicFeeTx(t *testing.T) {
 	// Test from
 	blockNumber := uint64(100)
-	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedDynFeeTx, dynFeeTxReceipt, txInnerTxs, txChangeset, blockNumber)
+	blockTime := uint64(1000)
+	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedDynFeeTx, dynFeeTxReceipt, txInnerTxs, txChangeset, blockNumber, blockTime)
 	assert.NilError(t, err)
-	AssertCommonTx(t, msg, signedDynFeeTx, blockNumber, types.DynamicFeeTxType)
+	AssertCommonTx(t, msg, signedDynFeeTx, blockNumber, blockTime, types.DynamicFeeTxType)
 	assert.Equal(t, msg.Tip.String(), signedDynFeeTx.GasTipCap().String())
 	assert.Equal(t, msg.FeeCap.String(), signedDynFeeTx.GasFeeCap().String())
 	AssertReceipt(t, msg, dynFeeTxReceipt)
@@ -78,7 +81,7 @@ func TestDynamicFeeTx(t *testing.T) {
 	convertDynFeeTx, convertBlockNumber, err := msg.GetTransaction()
 	assert.NilError(t, err)
 	assert.Equal(t, convertBlockNumber, blockNumber)
-	AssertCommonTx(t, msg, convertDynFeeTx, convertBlockNumber, types.DynamicFeeTxType)
+	AssertCommonTx(t, msg, convertDynFeeTx, convertBlockNumber, blockTime, types.DynamicFeeTxType)
 	assertTxAccessList(t, convertDynFeeTx.AccessList())
 	assert.Equal(t, msg.Tip.String(), convertDynFeeTx.GasTipCap().String())
 	assert.Equal(t, msg.FeeCap.String(), convertDynFeeTx.GasFeeCap().String())
@@ -87,9 +90,10 @@ func TestDynamicFeeTx(t *testing.T) {
 func TestFromBlobTx(t *testing.T) {
 	// Test from
 	blockNumber := uint64(100)
-	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedBlobTx, blobTxReceipt, txInnerTxs, txChangeset, blockNumber)
+	blockTime := uint64(1000)
+	msg, err := kafkaTypes.ToKafkaTransactionMessage(signedBlobTx, blobTxReceipt, txInnerTxs, txChangeset, blockNumber, blockTime)
 	assert.NilError(t, err)
-	AssertCommonTx(t, msg, signedBlobTx, blockNumber, types.BlobTxType)
+	AssertCommonTx(t, msg, signedBlobTx, blockNumber, blockTime, types.BlobTxType)
 	assert.Equal(t, msg.Tip.String(), signedBlobTx.GasTipCap().String())
 	assert.Equal(t, msg.FeeCap.String(), signedBlobTx.GasFeeCap().String())
 	AssertReceipt(t, msg, blobTxReceipt)
@@ -105,7 +109,7 @@ func TestFromBlobTx(t *testing.T) {
 	// Test to
 	convertBlobTx, convertBlockNumber, err := msg.GetTransaction()
 	assert.NilError(t, err)
-	AssertCommonTx(t, msg, convertBlobTx, convertBlockNumber, types.BlobTxType)
+	AssertCommonTx(t, msg, convertBlobTx, convertBlockNumber, blockTime, types.BlobTxType)
 	assert.Equal(t, msg.Tip.String(), convertBlobTx.GasTipCap().String())
 	assert.Equal(t, msg.FeeCap.String(), convertBlobTx.GasFeeCap().String())
 	assertTxAccessList(t, convertBlobTx.AccessList())

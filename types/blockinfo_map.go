@@ -4,40 +4,34 @@ import (
 	"path/filepath"
 	"sync"
 
-	libcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type BlockInfo struct {
-	Header  *types.Header  `json:"header"`
-	TxCount int64          `json:"txCount"`
-	Hash    libcommon.Hash `json:"hash"`
-}
-
 type BlockInfoMap struct {
 	blockInfos        map[uint64]*BlockInfo
-	blockHashToHeight map[libcommon.Hash]uint64
+	blockHashToHeight map[common.Hash]uint64
 	mu                sync.RWMutex
 }
 
 func NewBlockInfoMap(size int) *BlockInfoMap {
 	return &BlockInfoMap{
 		blockInfos:        make(map[uint64]*BlockInfo, size),
-		blockHashToHeight: make(map[libcommon.Hash]uint64, size),
+		blockHashToHeight: make(map[common.Hash]uint64, size),
 	}
 }
 
-func (bm *BlockInfoMap) Get(blockNum uint64) (*types.Header, int64, libcommon.Hash, bool) {
+func (bm *BlockInfoMap) Get(blockNum uint64) (*types.Header, int64, common.Hash, bool) {
 	bm.mu.RLock()
 	defer bm.mu.RUnlock()
 	blockInfo, exists := bm.blockInfos[blockNum]
 	if exists {
 		return blockInfo.Header, blockInfo.TxCount, blockInfo.Hash, true
 	}
-	return nil, 0, libcommon.Hash{}, exists
+	return nil, 0, common.Hash{}, exists
 }
 
-func (bm *BlockInfoMap) GetBlockNumberByHash(blockHash libcommon.Hash) (uint64, bool) {
+func (bm *BlockInfoMap) GetBlockNumberByHash(blockHash common.Hash) (uint64, bool) {
 	bm.mu.RLock()
 	defer bm.mu.RUnlock()
 
@@ -45,21 +39,17 @@ func (bm *BlockInfoMap) GetBlockNumberByHash(blockHash libcommon.Hash) (uint64, 
 	return blockNum, exists
 }
 
-func (bm *BlockInfoMap) PutHeader(blockNum uint64, header *types.Header, prevBlockInfo *BlockInfo) {
+func (bm *BlockInfoMap) PutNewBlockInfo(blockNum uint64, blockInfo *BlockInfo) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
-	bm.blockInfos[blockNum] = &BlockInfo{
-		Header:  header,
-		TxCount: -1,
-		Hash:    libcommon.Hash{},
-	}
+	bm.blockInfos[blockNum] = blockInfo
+}
 
-	// Update previous block info
-	prevBlockNum := blockNum - 1
-	if prevBlockInfo != nil {
-		bm.blockInfos[prevBlockNum] = prevBlockInfo
-		bm.blockHashToHeight[prevBlockInfo.Hash] = prevBlockNum
-	}
+func (bm *BlockInfoMap) PutConfirmedBlockInfo(blockNum uint64, blockInfo *BlockInfo) {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	bm.blockInfos[blockNum] = blockInfo
+	bm.blockHashToHeight[blockInfo.Hash] = blockNum
 }
 
 func (bm *BlockInfoMap) Delete(blockNum uint64) {

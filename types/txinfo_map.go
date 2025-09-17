@@ -66,20 +66,20 @@ func (rm *TxInfoMap) GetTx(txHash common.Hash) (*types.Transaction, *types.Recei
 	return txInfo.Tx, txInfo.Receipt, txInfo.BlockNumber, txInfo.InnerTxs, exists
 }
 
-func (rm *TxInfoMap) GetBlockTxs(blockNumber uint64) ([]common.Hash, bool) {
+func (rm *TxInfoMap) GetBlockTxs(blockNumber uint64) []common.Hash {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
+	hashes := make([]common.Hash, 0)
 	hashSet, exists := rm.blockTxs[blockNumber]
 	if !exists {
-		return nil, false
+		return hashes
 	}
 
-	hashes := make([]common.Hash, 0, len(hashSet))
 	for hash := range hashSet {
 		hashes = append(hashes, hash)
 	}
 
-	return hashes, true
+	return hashes
 }
 
 func (rm *TxInfoMap) Clear() {

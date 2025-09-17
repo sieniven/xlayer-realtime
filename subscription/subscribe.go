@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
-	libcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/filters"
+	"github.com/ethereum/go-ethereum/log"
 	kafkaTypes "github.com/ethereum/go-ethereum/realtime/kafka/types"
+	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 )
 
 const (
@@ -20,11 +23,12 @@ const (
 )
 
 type RealtimeSubMessage struct {
-	BlockMsg *kafkaTypes.BlockMessage
+	BlockMsg *realtimeTypes.BlockInfo
 	TxMsg    *kafkaTypes.TransactionMessage
 }
 
 type RealtimeSubscription struct {
+	currHeight atomic.Uint64
 	rtSubs     *SyncMap[SubID, Sub[RealtimeSubMessage]]
 	logsSubs   *SyncMap[SubID, *LogsFilter]
 	newMsgChan chan RealtimeSubMessage
@@ -32,6 +36,7 @@ type RealtimeSubscription struct {
 
 func NewRealtimeSubscription() *RealtimeSubscription {
 	return &RealtimeSubscription{
+		currHeight: atomic.Uint64{},
 		rtSubs:     NewSyncMap[SubID, Sub[RealtimeSubMessage]](),
 		logsSubs:   NewSyncMap[SubID, *LogsFilter](),
 		newMsgChan: make(chan RealtimeSubMessage, DefaultChannelSize),
@@ -65,6 +70,22 @@ func (ff *RealtimeSubscription) Start(ctx context.Context) {
 }
 
 func (ff *RealtimeSubscription) handleRealtimeMsgs(ctx context.Context, msg RealtimeSubMessage) {
+	msgHeight := uint64(0)
+	if msg.BlockMsg != nil {
+		msgHeight = msg.BlockMsg.Header.Number.Uint64()
+	} else if msg.TxMsg != nil {
+		msgHeight = msg.TxMsg.BlockNumber
+	}
+
+	if msgHeight < ff.currHeight.Load() {
+		// Ignore msg from previous blocks
+		log.Debug(fmt.Sprintf("[Realtime] Subscription ignoring msg from previous block. msgHeight: %d, currHeight: %d", msgHeight, ff.currHeight.Load()))
+		return
+	}
+	if msgHeight > ff.currHeight.Load() {
+		ff.currHeight.Store(msgHeight)
+	}
+
 	ff.rtSubs.Range(func(k SubID, v Sub[RealtimeSubMessage]) error {
 		select {
 		case <-ctx.Done():
@@ -103,7 +124,7 @@ func (ff *RealtimeSubscription) handleRealtimeLogMsgs(ctx context.Context, txMsg
 	}
 }
 
-func (ff *RealtimeSubscription) BroadcastNewMsg(blockMsg *kafkaTypes.BlockMessage, txMsg *kafkaTypes.TransactionMessage) {
+func (ff *RealtimeSubscription) BroadcastNewMsg(blockMsg *realtimeTypes.BlockInfo, txMsg *kafkaTypes.TransactionMessage) {
 	msg := RealtimeSubMessage{
 		BlockMsg: blockMsg,
 		TxMsg:    txMsg,
@@ -141,8 +162,8 @@ func (ff *RealtimeSubscription) SubscribeRealtimeLogs(crit filters.FilterCriteri
 
 	id := SubID(generateSubID())
 	sub := newChanSub[*types.Log](DefaultSubscribeChannelSize)
-	filter := &LogsFilter{addrs: map[libcommon.Address]int{}, topics: map[libcommon.Hash]int{}, sender: sub}
-	filter.addrs = map[libcommon.Address]int{}
+	filter := &LogsFilter{addrs: map[common.Address]int{}, topics: map[common.Hash]int{}, sender: sub}
+	filter.addrs = map[common.Address]int{}
 	if len(crit.Addresses) == 0 {
 		filter.allAddrs = 1
 	} else {
@@ -150,7 +171,7 @@ func (ff *RealtimeSubscription) SubscribeRealtimeLogs(crit filters.FilterCriteri
 			filter.addrs[addr] = 1
 		}
 	}
-	filter.topics = map[libcommon.Hash]int{}
+	filter.topics = map[common.Hash]int{}
 	if len(crit.Topics) == 0 {
 		filter.allTopics = 1
 	} else {

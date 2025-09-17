@@ -1,12 +1,11 @@
 package rtclient
 
 import (
-	"encoding/json"
 	"errors"
 	"math/big"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type RealtimeDebugResult struct {
@@ -15,57 +14,68 @@ type RealtimeDebugResult struct {
 	Mismatches      []string `json:"mismatches"`
 }
 
-type rpcTransaction struct {
-	tx *types.Transaction
-	txExtraInfo
+type BigInt struct {
+	*big.Int
 }
 
-type txExtraInfo struct {
-	BlockNumber *string         `json:"blockNumber,omitempty"`
-	BlockHash   *common.Hash    `json:"blockHash,omitempty"`
-	From        *common.Address `json:"from,omitempty"`
-}
-
-func (tx *rpcTransaction) UnmarshalJSON(msg []byte) error {
-	if err := json.Unmarshal(msg, &tx.tx); err != nil {
+// UnmarshalJSON implements json.Unmarshaler for BigInt
+func (bi *BigInt) UnmarshalJSON(data []byte) error {
+	if bi.Int == nil {
+		bi.Int = new(big.Int)
+	}
+	// Remove quotes
+	unquotedData, err := strconv.Unquote(string(data))
+	if err != nil {
 		return err
 	}
-	return json.Unmarshal(msg, &tx.txExtraInfo)
-}
 
-// senderFromServer is a types.Signer that remembers the sender address returned by the RPC
-// server. It is stored in the transaction's sender address cache to avoid an additional
-// request in TransactionSender.
-type senderFromServer struct {
-	addr      common.Address
-	blockhash common.Hash
-}
-
-var errNotCached = errors.New("sender not cached")
-
-func setSenderFromServer(tx *types.Transaction, addr common.Address, block common.Hash) {
-	// Use types.Sender for side-effect to store our signer into the cache.
-	types.Sender(&senderFromServer{addr, block}, tx)
-}
-
-func (s *senderFromServer) Equal(other types.Signer) bool {
-	os, ok := other.(*senderFromServer)
-	return ok && os.blockhash == s.blockhash
-}
-
-func (s *senderFromServer) Sender(tx *types.Transaction) (common.Address, error) {
-	if s.addr == (common.Address{}) {
-		return common.Address{}, errNotCached
+	if len(unquotedData) > 2 && unquotedData[0] == '0' && unquotedData[1] == 'x' {
+		unquotedData = unquotedData[2:]
 	}
-	return s.addr, nil
+	_, success := bi.SetString(unquotedData, 16)
+	if !success {
+		return errors.New("failed to convert string to big.Int")
+	}
+	return nil
 }
 
-func (s *senderFromServer) ChainID() *big.Int {
-	panic("can't sign with senderFromServer")
+type Int int
+
+// UnmarshalJSON implements json.Unmarshaler for Int
+func (i *Int) UnmarshalJSON(data []byte) error {
+	unquotedData, err := strconv.Unquote(string(data))
+	if err != nil {
+		return err
+	}
+
+	if len(unquotedData) > 2 && unquotedData[0] == '0' && unquotedData[1] == 'x' {
+		unquotedData = unquotedData[2:]
+	}
+
+	num, err := strconv.ParseInt(unquotedData, 16, 64)
+	if err != nil {
+		return err
+	}
+
+	*i = Int(num)
+	return nil
 }
-func (s *senderFromServer) Hash(tx *types.Transaction) common.Hash {
-	panic("can't sign with senderFromServer")
-}
-func (s *senderFromServer) SignatureValues(tx *types.Transaction, sig []byte) (R, S, V *big.Int, err error) {
-	panic("can't sign with senderFromServer")
+
+// RpcTransaction represents a transaction that will serialize to the RPC representation of a transaction
+type RpcTransaction struct {
+	BlockNumber      *string         `json:"blockNumber,omitempty"`
+	BlockHash        *common.Hash    `json:"blockHash,omitempty"`
+	From             *common.Address `json:"from,omitempty"`
+	Gas              *BigInt         `json:"gas,omitempty"`
+	GasPrice         *BigInt         `json:"gasPrice,omitempty"`
+	Hash             *string         `json:"hash,omitempty"`
+	Input            *string         `json:"input,omitempty"`
+	Nonce            *BigInt         `json:"nonce,omitempty"`
+	R                *string         `json:"r,omitempty"`
+	S                *string         `json:"s,omitempty"`
+	To               *common.Address `json:"to,omitempty"`
+	TransactionIndex *Int            `json:"transactionIndex,omitempty"`
+	Type             *Int            `json:"type,omitempty"`
+	V                *string         `json:"v,omitempty"`
+	Value            *BigInt         `json:"value,omitempty"`
 }

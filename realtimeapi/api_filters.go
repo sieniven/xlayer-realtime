@@ -47,11 +47,12 @@ func (api *RealtimeAPIImpl) Realtime(ctx context.Context, criteria realtimeSub.S
 				result := RealtimeSubResult{}
 				sendFlag := false
 				if criteria.NewHeads && msg.BlockMsg != nil {
-					header, _, err := msg.BlockMsg.GetBlockInfo()
-					if err != nil {
+					// Send the latest confirmed block header
+					if err != nil || msg.BlockMsg.Header == nil {
 						log.Warn("[realtime subscription] error getting block info", "err", err)
 					}
-					result.Header = header
+					result.Header = msg.BlockMsg.Header
+					result.BlockTime = msg.BlockMsg.Header.Time
 					sendFlag = true
 				}
 
@@ -61,6 +62,7 @@ func (api *RealtimeAPIImpl) Realtime(ctx context.Context, criteria realtimeSub.S
 						log.Warn("[realtime subscription] error getting tx data", "err", err)
 					}
 					result.TxHash = tx.Hash().Hex()
+					result.BlockTime = msg.TxMsg.BlockTime
 					sendFlag = true
 
 					// Add tx data according to stream criteria

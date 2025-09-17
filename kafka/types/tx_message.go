@@ -6,7 +6,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	libcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	realtimeTypes "github.com/ethereum/go-ethereum/realtime/types"
 )
@@ -15,19 +14,20 @@ import (
 type TransactionMessage struct {
 	// Sequenced block number
 	BlockNumber uint64 `json:"blockNumber"`
+	BlockTime   uint64 `json:"blockTime"`
 
 	// Common tx fields
-	Type    uint8              `json:"type"`
-	Hash    libcommon.Hash     `json:"hash"`
-	ChainID *big.Int           `json:"chainId"`
-	Nonce   uint64             `json:"nonce"`
-	Gas     uint64             `json:"gas"`
-	To      *libcommon.Address `json:"to"`
-	Value   *big.Int           `json:"value"`
-	Data    []byte             `json:"data"`
-	V       *big.Int           `json:"v"`
-	R       *big.Int           `json:"r"`
-	S       *big.Int           `json:"s"`
+	Type    uint8           `json:"type"`
+	Hash    common.Hash     `json:"hash"`
+	ChainID *big.Int        `json:"chainId"`
+	Nonce   uint64          `json:"nonce"`
+	Gas     uint64          `json:"gas"`
+	To      *common.Address `json:"to"`
+	Value   *big.Int        `json:"value"`
+	Data    []byte          `json:"data"`
+	V       *big.Int        `json:"v"`
+	R       *big.Int        `json:"r"`
+	S       *big.Int        `json:"s"`
 
 	// For legacy txs
 	GasPrice *big.Int `json:"gasPrice"`
@@ -49,7 +49,7 @@ type TransactionMessage struct {
 	Changeset *realtimeTypes.Changeset `json:"changeset"`
 }
 
-func ToKafkaTransactionMessage(tx *types.Transaction, receipt *types.Receipt, innerTxs []*types.InnerTx, changeset *realtimeTypes.Changeset, blockNumber uint64) (txMsg TransactionMessage, err error) {
+func ToKafkaTransactionMessage(tx *types.Transaction, receipt *types.Receipt, innerTxs []*types.InnerTx, changeset *realtimeTypes.Changeset, blockNumber uint64, blockTime uint64) (txMsg TransactionMessage, err error) {
 	// Parse tx
 	if tx == nil || receipt == nil || innerTxs == nil || changeset == nil {
 		return TransactionMessage{}, fmt.Errorf("nil tx data received")
@@ -58,22 +58,22 @@ func ToKafkaTransactionMessage(tx *types.Transaction, receipt *types.Receipt, in
 	// Parse tx
 	switch tx.Type() {
 	case types.LegacyTxType:
-		txMsg, err = fromLegacyTxMessage(tx, blockNumber)
+		txMsg, err = fromLegacyTxMessage(tx, blockNumber, blockTime)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse legacy tx error: %w", err)
 		}
 	case types.AccessListTxType:
-		txMsg, err = fromAccessListTxMessage(tx, blockNumber)
+		txMsg, err = fromAccessListTxMessage(tx, blockNumber, blockTime)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse accesslist tx error: %w", err)
 		}
 	case types.DynamicFeeTxType:
-		txMsg, err = fromDynamicFeeTxMessage(tx, blockNumber)
+		txMsg, err = fromDynamicFeeTxMessage(tx, blockNumber, blockTime)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse dynamic fee tx error: %w", err)
 		}
 	case types.BlobTxType:
-		txMsg, err = fromBlobTxMessage(tx, blockNumber)
+		txMsg, err = fromBlobTxMessage(tx, blockNumber, blockTime)
 		if err != nil {
 			return TransactionMessage{}, fmt.Errorf("parse blob tx error: %w", err)
 		}
@@ -186,11 +186,11 @@ func (msg TransactionMessage) MarshalJSON() ([]byte, error) {
 	type TransactionMessage struct {
 		BlockNumber         uint64                   `json:"blockNumber"`
 		Type                uint8                    `json:"type"`
-		Hash                libcommon.Hash           `json:"hash"`
+		Hash                common.Hash              `json:"hash"`
 		ChainID             *big.Int                 `json:"chainId"`
 		Nonce               uint64                   `json:"nonce"`
 		Gas                 uint64                   `json:"gas"`
-		To                  *libcommon.Address       `json:"to"`
+		To                  *common.Address          `json:"to"`
 		Value               *big.Int                 `json:"value"`
 		Data                []byte                   `json:"data"`
 		V                   *big.Int                 `json:"v"`
@@ -240,7 +240,7 @@ func (msg TransactionMessage) MarshalJSON() ([]byte, error) {
 		for _, log := range receipt.Logs {
 			if log != nil {
 				if log.Topics == nil {
-					log.Topics = []libcommon.Hash{}
+					log.Topics = []common.Hash{}
 				}
 			}
 		}
